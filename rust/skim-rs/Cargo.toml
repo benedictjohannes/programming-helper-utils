@@ -1,6 +1,6 @@
 [package]
 name = "skim-rs"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2024"
 description = "Fast, AST-based Rust code outline and block extractor for AI agents and terminals"
 license = "MIT"

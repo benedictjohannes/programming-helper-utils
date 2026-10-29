@@ -1,6 +1,6 @@
 use ra_ap_syntax::{
     ast::{self, HasAttrs, HasModuleItem, HasName},
-    AstNode, SourceFile, SyntaxNode,
+    AstNode, SourceFile, SyntaxKind, SyntaxNode,
 };
 use text_size::TextRange;
 
@@ -149,21 +149,45 @@ fn collapse_whitespace(s: &str) -> String {
 }
 
 fn format_signature_up_to_body(node: &SyntaxNode, body_range: Option<TextRange>) -> String {
-    let full_text = node.text().to_string();
-    let sig_text = match body_range {
-        Some(range) => {
-            let offset_in_node = range.start() - node.text_range().start();
-            let u: usize = u32::from(offset_in_node) as usize;
-            if u <= full_text.len() {
-                &full_text[..u]
-            } else {
-                &full_text
+    let limit_end = match body_range {
+        Some(range) => range.start(),
+        None => node.text_range().end(),
+    };
+
+    let mut sig_parts = Vec::new();
+    for element in node.children_with_tokens() {
+        if element.text_range().start() >= limit_end {
+            break;
+        }
+
+        match element.kind() {
+            SyntaxKind::ATTR | SyntaxKind::COMMENT | SyntaxKind::DOC_COMMENT => continue,
+            _ => {}
+        }
+
+        match element {
+            ra_ap_syntax::SyntaxElement::Token(token) => {
+                sig_parts.push(token.text().to_string());
+            }
+            ra_ap_syntax::SyntaxElement::Node(child_node) => {
+                for token in child_node.descendants_with_tokens() {
+                    if token.text_range().start() >= limit_end {
+                        break;
+                    }
+                    match token.kind() {
+                        SyntaxKind::ATTR | SyntaxKind::COMMENT | SyntaxKind::DOC_COMMENT => continue,
+                        _ => {}
+                    }
+                    if let ra_ap_syntax::SyntaxElement::Token(t) = token {
+                        sig_parts.push(t.text().to_string());
+                    }
+                }
             }
         }
-        None => &full_text,
-    };
-    // Strip trailing semicolon, braces, or whitespace
-    let trimmed = sig_text.trim().trim_end_matches('{').trim().trim_end_matches(';').trim();
+    }
+
+    let joined = sig_parts.concat();
+    let trimmed = joined.trim().trim_end_matches('{').trim().trim_end_matches(';').trim();
     collapse_whitespace(trimmed)
 }
 

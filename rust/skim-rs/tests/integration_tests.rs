@@ -24,6 +24,15 @@ fn test_glance_signatures_and_imports() {
 }
 
 #[test]
+fn test_glance_doc_comments_stripped_from_signature() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/impls.rs", "-s"]);
+    assert_eq!(code, 0);
+    // User struct should have a clean signature without doc comments or attributes
+    assert!(stdout.contains("pub struct User"));
+    assert!(!stdout.contains("///"));
+}
+
+#[test]
 fn test_block_syntax_error_indication() {
     let (code, stdout, _) = run_cmd(&["block", "fixtures/broken.rs", "broken_function"]);
     assert_eq!(code, 0);
@@ -80,4 +89,14 @@ fn test_test_filtering() {
     assert!(stdout_with_t.contains("test_something"));
     assert!(stdout_with_t.contains("async_test_case"));
     assert!(stdout_with_t.contains("mod tests"));
+}
+
+#[test]
+fn test_glance_filter_within_block() {
+    // "let x = 10" is only inside broken_function body, not in declaration/signature
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/broken.rs", "-f", "let x = 10"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("broken_function"));
+    assert!(!stdout.contains("WorkingConfig"));
+    assert!(!stdout.contains("AnotherValidStruct"));
 }

@@ -47,7 +47,7 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
                 if !opts.include_tests && item.is_test {
                     return false;
                 }
-                match_filters(item, &opts.filters)
+                match_filters(item, &parsed.lines, &opts.filters)
             })
             .collect();
 
@@ -122,21 +122,41 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
     0
 }
 
-fn match_filters(item: &Item, filters: &[String]) -> bool {
+fn match_filters(item: &Item, lines: &[String], filters: &[String]) -> bool {
     if filters.is_empty() {
         return true;
     }
 
-    let search_corpus = format!(
+    let mut search_corpus = format!(
         "{} {} {} {}",
         item.name,
         item.qualified_name,
         item.kind.as_str(),
         item.signature
-    ).to_lowercase();
+    );
+
+    // Also include details
+    for d in &item.details {
+        search_corpus.push(' ');
+        search_corpus.push_str(&d.name);
+        search_corpus.push(' ');
+        search_corpus.push_str(&d.signature);
+    }
+
+    // Include the full verbatim block text lines
+    if item.start_line >= 1 && item.start_line <= lines.len() {
+        let start_idx = item.start_line - 1;
+        let end_idx = item.end_line.min(lines.len());
+        for line in &lines[start_idx..end_idx] {
+            search_corpus.push('\n');
+            search_corpus.push_str(line);
+        }
+    }
+
+    let search_corpus_lower = search_corpus.to_lowercase();
 
     for f in filters {
-        if !search_corpus.contains(&f.to_lowercase()) {
+        if !search_corpus_lower.contains(&f.to_lowercase()) {
             return false;
         }
     }

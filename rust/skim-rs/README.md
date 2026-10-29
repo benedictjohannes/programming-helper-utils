@@ -34,7 +34,7 @@ flowchart TD
 ```
 
 1. **Survey (`glance -s`)**: Get the structural topography of a crate or module in under 100 tokens.
-2. **Locate (`glance -f <keyword>`)**: Narrow down matching declarations across files with case-insensitive substring filters.
+2. **Locate (`glance -f <keyword>`)**: Narrow down matching items/blocks across files with case-insensitive substring filters (matches declarations, member details, or block bodies; repeatable for AND matching).
 3. **Inspect (`block <file> <target>`)**: Fetch the exact verbatim implementation block with accurate file line numbers for precision editing.
 
 ---
@@ -105,7 +105,7 @@ Options:
   -s, --signatures          Show declarations & types without function bodies
   -d, --details             Show struct fields, interface members, and enum variants
   -u, --uses, --imports     Display top-level imports and uses
-  -f, --filter <text>       Filter items containing <text> (case-insensitive, repeatable)
+  -f, --filter <text>       Filter items containing <text> (within block or declaration, case-insensitive, repeatable for AND)
   -t, --include-tests       Include test files, test modules, and test functions
 ```
 
@@ -164,7 +164,21 @@ Outline:
   L111-L130    fn into_response(self) -> Response
 ```
 
-#### Example 4: Filter by Keyword across Declarations (`-f <keyword>`)
+#### Example 4: Filter by Keyword across Declarations and Blocks (`-f <keyword>`)
+
+Matches declarations, struct/enum details, or verbatim block contents (e.g. searching for `content_type.starts_with` which only appears inside the function body):
+
+```bash
+skim-rs glance axum/src/extract/mod.rs -f "content_type.starts_with"
+```
+```text
+=== axum/src/extract/mod.rs (113 lines) ===
+
+Outline:
+  L85-L96      fn has_content_type
+```
+
+Combined with `-s` to display signatures:
 
 ```bash
 skim-rs glance axum/src/extract/mod.rs -s -f "has_content_type"
@@ -255,7 +269,6 @@ Arguments:
 Options:
   -t, --include-tests       Search inside test functions/modules
   --raw                     Omit line number gutter (clean code for edits/diffs)
-  -d, --details             Accepted for CLI compatibility
 ```
 
 #### Example 7: Extract Struct Definition

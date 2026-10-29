@@ -37,7 +37,6 @@ block: Extract verbatim code block for a type, function, or Type::method.
   Options:
     -t, --include-tests    Search inside test functions/modules
     --raw                  Omit line number gutter
-    -d, --details          Accepted for compatibility
   Examples:
     skim-rs block src/router.rs Router
     skim-rs block src/router.rs Router::route
@@ -124,8 +123,6 @@ fn parse_block_args(args: &[String]) -> Option<block::BlockOptions> {
             raw = true;
         } else if arg == "-t" || arg == "--include-tests" {
             include_tests = true;
-        } else if arg == "-d" || arg == "--details" {
-            // Accepted for compatibility
         } else if arg.starts_with('-') {
             eprintln!("Error: unknown flag '{}'", arg);
             return None;
