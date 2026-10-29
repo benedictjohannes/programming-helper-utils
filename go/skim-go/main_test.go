@@ -201,11 +201,25 @@ func TestCasingPrecedence(t *testing.T) {
 			Target: "ITEM",
 		})
 	})
-	if code == 0 {
-		t.Fatalf("expected ambiguity error for ITEM, got code 0")
+	if code != 3 {
+		t.Fatalf("expected ambiguity exit code 3 for ITEM, got code %d", code)
 	}
 	if !strings.Contains(errOut, "Error: ambiguous target 'ITEM' matched 2 candidates") {
 		t.Errorf("expected ambiguity error for ITEM, got: %s", errOut)
+	}
+
+	// Target not found should exit with code 2
+	_, errNotFound, codeNotFound := captureOutput(func() int {
+		return RunBlock(BlockOptions{
+			File:   "testdata/casing.go",
+			Target: "NonExistentIdentifier",
+		})
+	})
+	if codeNotFound != 2 {
+		t.Fatalf("expected not found exit code 2, got code %d", codeNotFound)
+	}
+	if !strings.Contains(errNotFound, "Error: target 'NonExistentIdentifier' not found") {
+		t.Errorf("expected not found error message, got: %s", errNotFound)
 	}
 }
 

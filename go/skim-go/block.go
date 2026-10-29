@@ -121,7 +121,7 @@ func RunBlock(opts BlockOptions) int {
 
 	if len(matches) == 0 {
 		fmt.Fprintf(os.Stderr, "Error: target '%s' not found in %s\n", opts.Target, relPath)
-		return 1
+		return 2
 	}
 
 	if len(matches) > 1 {
@@ -131,7 +131,7 @@ func RunBlock(opts BlockOptions) int {
 			fmt.Fprintf(os.Stderr, "  %d) %-10s %s %s\n", idx+1, span, m.Kind, m.QualifiedName)
 		}
 		fmt.Fprintf(os.Stderr, "\nTip: Disambiguate with Type.Method (e.g. Server.Listen) or read line range directly.\n")
-		return 1
+		return 3
 	}
 
 	chosen := matches[0]
