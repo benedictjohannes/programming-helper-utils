@@ -1,8 +1,11 @@
 # `skim-rs`
 
+[![Crates.io](https://img.shields.io/crates/v/skim-rs.svg)](https://crates.io/crates/skim-rs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+
 A fast, lossless, AST-resilient Rust outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
-Conforms to the [`skim-*` Family Design Specification](../../Design.md).
+> Part of the [`skim-*` family - check out the complete suite](https://github.com/benedictjohannes/programming-helper-utils). Conforms to the [`skim-*` Family Design Specification](https://github.com/benedictjohannes/programming-helper-utils/blob/master/Design.md).
 
 ---
 

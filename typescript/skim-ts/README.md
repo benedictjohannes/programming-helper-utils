@@ -1,8 +1,11 @@
 # `skim-ts`
 
+[![npm version](https://img.shields.io/npm/v/skim-ts.svg)](https://www.npmjs.com/package/skim-ts)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+
 A fast, zero-bloat, AST-resilient TypeScript and JavaScript outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
-Conforms to the [`skim-*` Family Design Specification](../../Design.md).
+> Part of the [`skim-*` family - check out the complete suite](https://github.com/benedictjohannes/programming-helper-utils). Conforms to the [`skim-*` Family Design Specification](https://github.com/benedictjohannes/programming-helper-utils/blob/master/Design.md).
 
 ---
 

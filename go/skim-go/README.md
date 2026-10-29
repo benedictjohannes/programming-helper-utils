@@ -1,8 +1,11 @@
 # `skim-go`
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/benedictjohannes/programming-helper-utils/go/skim-go.svg)](https://pkg.go.dev/github.com/benedictjohannes/programming-helper-utils/go/skim-go)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+
 A fast, zero-dependency, AST-based Go outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
-Conforms to the [`skim-*` Family Design Specification](../../Design.md).
+> Part of the [`skim-*` family - check out the complete suite](https://github.com/benedictjohannes/programming-helper-utils). Conforms to the [`skim-*` Family Design Specification](https://github.com/benedictjohannes/programming-helper-utils/blob/master/Design.md).
 
 ---
 
