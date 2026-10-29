@@ -57,23 +57,22 @@ flowchart TD
 
 ### Via `cargo install` (Recommended)
 
-Requires Rust 1.85+ (Edition 2024):
+From [crates.io](https://crates.io/crates/skim-rs):
 
 ```bash
-cargo install --path rust/skim-rs
+cargo install skim-rs
 ```
 
 Ensure `~/.cargo/bin` is in your `PATH`.
 
 ### From Source
 
+Requires Rust 1.85+ (Edition 2024):
+
 ```bash
 git clone https://github.com/benedictjohannes/programming-helper-utils.git
 cd programming-helper-utils/rust/skim-rs
-cargo build --release
-
-# Move to a directory in your PATH (e.g. ~/.local/bin or /usr/local/bin)
-mv target/release/skim-rs ~/.local/bin/
+cargo install --path .
 ```
 
 ---

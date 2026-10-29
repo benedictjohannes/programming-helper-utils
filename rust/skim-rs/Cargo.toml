@@ -1,7 +1,13 @@
 [package]
 name = "skim-rs"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2024"
+description = "Fast, AST-based Rust code outline and block extractor for AI agents and terminals"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/benedictjohannes/programming-helper-utils"
+keywords = ["ast", "cli", "tools", "parser", "ai"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 ra_ap_syntax = "0.0.360"
