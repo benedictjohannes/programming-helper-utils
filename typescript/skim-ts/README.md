@@ -56,12 +56,12 @@ flowchart TD
 
 ## Installation & Usage
 
-### On-Demand (`bunx`)
+### On-Demand (`bunx` or `npx`)
 Run directly without installing:
 
 ```bash
 bunx skim-ts glance src/ -s
-bunx skim-ts block src/types.ts Target
+npx skim-ts block src/types.ts Target
 ```
 
 ### Global Install (`bun` / `npm`)
