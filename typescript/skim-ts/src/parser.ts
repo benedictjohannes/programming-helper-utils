@@ -1,5 +1,5 @@
 import * as ts from 'typescript';
-import type { OutlineItem, ParsedFile } from './types';
+import type { OutlineItem, ParsedFile, SyntaxNotice } from './types';
 
 export function isTestFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/');
@@ -40,8 +40,8 @@ export function isTestCall(node: ts.Node): { isTest: boolean; testKind: string; 
   const rootName = parts[0] || '';
   if (['describe', 'it', 'test', 'suite'].includes(rootName)) {
     let testName = '';
-    if (call.arguments.length > 0) {
-      const firstArg = call.arguments[0];
+    const firstArg = call.arguments[0];
+    if (firstArg) {
       if (ts.isStringLiteral(firstArg) || ts.isNoSubstitutionTemplateLiteral(firstArg)) {
         testName = firstArg.text;
       } else {
@@ -83,7 +83,8 @@ function extractSignatureHeader(node: ts.Node, sf: ts.SourceFile): string {
   } else if (semiIdx !== -1) {
     return text.slice(0, semiIdx).trim().replace(/\s+/g, ' ');
   }
-  return text.split(/\r?\n/)[0].trim().replace(/\s+/g, ' ');
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  return firstLine.trim().replace(/\s+/g, ' ');
 }
 
 function formatVariableHeader(node: ts.VariableStatement, sf: ts.SourceFile): { header: string; isFn: boolean } {
@@ -162,6 +163,18 @@ export function parseSourceFile(
   const items: OutlineItem[] = [];
   const testRanges: [number, number][] = [];
   const imports: string[] = [];
+  const syntaxErrors: SyntaxNotice[] = [];
+
+  const rawDiagnostics = (sf as any).parseDiagnostics || [];
+  for (const diag of rawDiagnostics) {
+    const { line, character } = sf.getLineAndCharacterOfPosition(diag.start ?? 0);
+    const message = ts.flattenDiagnosticMessageText(diag.messageText, '\n');
+    syntaxErrors.push({
+      line: line + 1,
+      col: character + 1,
+      message,
+    });
+  }
 
   const lines = sourceText.split(/\r?\n/);
   const totalLines = lines.length;
@@ -607,5 +620,6 @@ export function parseSourceFile(
     imports,
     totalLines,
     isTestFile: isTest,
+    syntaxErrors,
   };
 }

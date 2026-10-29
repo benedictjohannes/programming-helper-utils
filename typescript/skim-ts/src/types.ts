@@ -19,6 +19,12 @@ export function getQualifiedName(item: OutlineItem): string {
   return item.name;
 }
 
+export interface SyntaxNotice {
+  line: number;
+  col: number;
+  message: string;
+}
+
 export interface ParsedFile {
   filePath: string;
   sourceText: string;
@@ -27,6 +33,7 @@ export interface ParsedFile {
   imports: string[];
   totalLines: number;
   isTestFile: boolean;
+  syntaxErrors: SyntaxNotice[];
 }
 
 export interface GlanceOptions {

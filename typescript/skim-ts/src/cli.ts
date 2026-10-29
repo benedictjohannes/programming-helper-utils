@@ -78,6 +78,7 @@ function parseArgs(args: string[]) {
 
     for (let i = 0; i < rest.length; i++) {
       const arg = rest[i];
+      if (!arg) continue;
       if (arg === '-s' || arg === '--signatures') {
         signatures = true;
       } else if (arg === '-d' || arg === '--details') {
@@ -88,7 +89,8 @@ function parseArgs(args: string[]) {
         includeTests = true;
       } else if (arg === '-f' || arg === '--filter') {
         if (i + 1 < rest.length) {
-          filter.push(rest[++i]);
+          const val = rest[++i];
+          if (val) filter.push(val);
         }
       } else if (arg.startsWith('--filter=')) {
         filter.push(arg.slice('--filter='.length));
@@ -130,6 +132,7 @@ function parseArgs(args: string[]) {
 
     for (let i = 0; i < rest.length; i++) {
       const arg = rest[i];
+      if (!arg) continue;
       if (arg === '-t' || arg === '--include-tests') {
         includeTests = true;
       } else if (arg === '--raw') {
@@ -144,14 +147,16 @@ function parseArgs(args: string[]) {
       }
     }
 
-    if (positionals.length < 2) {
+    const file = positionals[0];
+    const target = positionals[1];
+    if (!file || !target) {
       process.stderr.write('Error: block requires <file> and <target> arguments.\n');
       process.exit(1);
     }
 
     const options: BlockOptions = {
-      file: positionals[0],
-      target: positionals[1],
+      file,
+      target,
       includeTests,
       raw,
     };

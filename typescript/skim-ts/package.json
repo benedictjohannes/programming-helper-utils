@@ -1,6 +1,6 @@
 {
   "name": "skim-ts",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Fast, AST-based TypeScript and JavaScript outline and code block extractor without test bloat.",
   "type": "module",
   "bin": {
@@ -13,7 +13,8 @@
   ],
   "scripts": {
     "build": "bun build ./src/cli.ts --target=node --outfile skim-ts --banner '#!/usr/bin/env bun' && chmod +x skim-ts",
-    "prepublishOnly": "bun run build && bun test",
+    "check": "tsc --noEmit",
+    "prepublishOnly": "bun run check && bun run build && bun test",
     "test": "bun test"
   },
   "keywords": [

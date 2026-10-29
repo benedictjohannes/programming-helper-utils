@@ -119,13 +119,30 @@ export function runBlock(options: BlockOptions): void {
   }
 
   const chosen = matches[0];
+  if (!chosen) {
+    process.exit(2);
+  }
   const srcLines = content.split(/\r?\n/);
   const blockLines = srcLines.slice(chosen.startLine - 1, chosen.endLine);
+
+  // Check for syntax errors within block range
+  const blockErrors = parsed.syntaxErrors.filter(
+    (e) => e.line >= chosen.startLine && e.line <= chosen.endLine
+  );
+
+  let errorTag = '';
+  if (blockErrors.length > 0) {
+    const n = blockErrors.length;
+    errorTag = n === 1 ? ' [! 1 syntax error]' : ` [! ${n} syntax errors]`;
+  }
 
   if (options.raw) {
     console.log(blockLines.join('\n'));
   } else {
-    console.log(`=== ${relPath} (L${chosen.startLine}-L${chosen.endLine}) ===`);
+    console.log(`=== ${relPath} (L${chosen.startLine}-L${chosen.endLine})${errorTag} ===`);
+    for (const err of blockErrors) {
+      console.log(`  Syntax Notice: L${err.line}: ${err.message}`);
+    }
     blockLines.forEach((line, idx) => {
       const lineNum = chosen.startLine + idx;
       console.log(`${String(lineNum).padStart(5, ' ')} | ${line}`);

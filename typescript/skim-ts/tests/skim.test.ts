@@ -199,3 +199,34 @@ describe("Ambiguity Handling", () => {
     expect(res.stderr).toContain("Tip: Disambiguate with Class.method (e.g. UserService.getUser) or read line range directly.");
   });
 });
+
+describe("Syntax Error Resilience (fixtures/broken.ts)", () => {
+  const file = path.join(FIXTURES_DIR, "broken.ts");
+
+  it("glance displays syntax error count in header and syntax notice line", () => {
+    const res = runCli(["glance", file, "-s"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("[! 1 syntax error]");
+    expect(res.stdout).toContain("Syntax Notice: L7: Expression expected.");
+    expect(res.stdout).toContain("export interface WorkingConfig");
+    expect(res.stdout).toContain("export function brokenFunction()");
+    expect(res.stdout).toContain("export interface AnotherValidInterface");
+  });
+
+  it("block displays syntax notice and error tag when symbol contains syntax error", () => {
+    const res = runCli(["block", file, "brokenFunction"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("[! 1 syntax error]");
+    expect(res.stdout).toContain("Syntax Notice: L7: Expression expected.");
+    expect(res.stdout).toContain("const x =");
+    expect(res.stdout).toContain("const y = 20;");
+  });
+
+  it("block does not display syntax notice for valid symbol in same broken file", () => {
+    const res = runCli(["block", file, "WorkingConfig"]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).not.toContain("[!");
+    expect(res.stdout).not.toContain("Syntax Notice");
+    expect(res.stdout).toContain("export interface WorkingConfig {");
+  });
+});

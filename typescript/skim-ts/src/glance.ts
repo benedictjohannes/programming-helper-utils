@@ -137,7 +137,7 @@ export function runGlance(options: GlanceOptions): void {
       const hasMatch = parsed.items.some(
         (it) => matchItemFilters(it, content, filters) || hasChildMatching(it, content, filters)
       );
-      if (!hasMatch) {
+      if (!hasMatch && parsed.syntaxErrors.length === 0) {
         return;
       }
     }
@@ -155,8 +155,18 @@ export function runGlance(options: GlanceOptions): void {
       testInfo = ` [tests skipped: ${trDesc}]`;
     }
 
+    let errorTag = '';
+    if (parsed.syntaxErrors.length > 0) {
+      const n = parsed.syntaxErrors.length;
+      errorTag = n === 1 ? ' [! 1 syntax error]' : ` [! ${n} syntax errors]`;
+    }
+
     const relPath = path.relative(process.cwd(), filePath) || filePath;
-    console.log(`=== ${relPath} (${parsed.totalLines} lines)${testInfo} ===`);
+    console.log(`=== ${relPath} (${parsed.totalLines} lines)${testInfo}${errorTag} ===`);
+
+    for (const err of parsed.syntaxErrors) {
+      console.log(`  Syntax Notice: L${err.line}: ${err.message}`);
+    }
 
     if (options.uses) {
       if (parsed.imports.length > 0) {
