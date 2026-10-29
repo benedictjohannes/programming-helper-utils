@@ -192,10 +192,10 @@ describe("Enums & Details (fixtures/enums.ts)", () => {
 
 describe("Ambiguity Handling", () => {
   it("detects ambiguous target and displays tip with exit code 3", () => {
-    const zodTypes = path.resolve(__dirname, "../../../testingRepositories/typescript/packages/zod/src/v3/types.ts");
-    const res = runCli(["block", zodTypes, "_parse"]);
+    const file = path.join(FIXTURES_DIR, "ambiguous.ts");
+    const res = runCli(["block", file, "parse"]);
     expect(res.status).toBe(3);
-    expect(res.stderr).toContain("Error: ambiguous target '_parse' matched");
+    expect(res.stderr).toContain("Error: ambiguous target 'parse' matched 2 candidates");
     expect(res.stderr).toContain("Tip: Disambiguate with Class.method (e.g. UserService.getUser) or read line range directly.");
   });
 });
