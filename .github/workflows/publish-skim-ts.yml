@@ -3,7 +3,7 @@ name: Publish skim-ts to NPM
 on:
   push:
     tags:
-      - 'skim-ts-v*'
+      - 'typescript/skim-ts/v*'
   workflow_dispatch:
 
 jobs:
