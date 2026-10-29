@@ -341,3 +341,71 @@ func TestGutterAndRawFormatting(t *testing.T) {
 		t.Errorf("expected raw code snippet, got: %s", out)
 	}
 }
+
+func TestSyntaxErrorResilience(t *testing.T) {
+	// Glance test on broken file
+	out, errOut, code := captureOutput(func() int {
+		return RunGlance(GlanceOptions{
+			Paths:      []string{"testdata/broken.go"},
+			Signatures: true,
+		})
+	})
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d, stderr: %s", code, errOut)
+	}
+	if !strings.Contains(out, "=== testdata/broken.go (14 lines) [! 1 syntax error] ===") {
+		t.Errorf("expected header with syntax error notice, got: %s", out)
+	}
+	if !strings.Contains(out, "Syntax Notice: L9: expected operand, found 'var'") {
+		t.Errorf("expected syntax notice line, got: %s", out)
+	}
+	if !strings.Contains(out, "type WorkingConfig struct") {
+		t.Errorf("expected WorkingConfig in outline, got: %s", out)
+	}
+	if !strings.Contains(out, "func brokenFunction()") {
+		t.Errorf("expected brokenFunction in outline, got: %s", out)
+	}
+	if !strings.Contains(out, "type AnotherValidStruct struct") {
+		t.Errorf("expected AnotherValidStruct in outline, got: %s", out)
+	}
+
+	// Block test for broken symbol (should show syntax notice)
+	out, errOut, code = captureOutput(func() int {
+		return RunBlock(BlockOptions{
+			File:   "testdata/broken.go",
+			Target: "brokenFunction",
+		})
+	})
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d, stderr: %s", code, errOut)
+	}
+	if !strings.Contains(out, "=== testdata/broken.go (L7-L10) [! 1 syntax error] ===") {
+		t.Errorf("expected header with syntax error tag, got: %s", out)
+	}
+	if !strings.Contains(out, "Syntax Notice: L9: expected operand, found 'var'") {
+		t.Errorf("expected syntax notice above block, got: %s", out)
+	}
+	if !strings.Contains(out, "var x =") {
+		t.Errorf("expected block body to contain broken line, got: %s", out)
+	}
+
+	// Block test for valid symbol in same broken file (should not show syntax error tag)
+	out, errOut, code = captureOutput(func() int {
+		return RunBlock(BlockOptions{
+			File:   "testdata/broken.go",
+			Target: "WorkingConfig",
+		})
+	})
+	if code != 0 {
+		t.Fatalf("expected code 0, got %d, stderr: %s", code, errOut)
+	}
+	if strings.Contains(out, "[!") {
+		t.Errorf("valid block should not contain error tag, got: %s", out)
+	}
+	if strings.Contains(out, "Syntax Notice") {
+		t.Errorf("valid block should not contain syntax notice, got: %s", out)
+	}
+	if !strings.Contains(out, "type WorkingConfig struct {") {
+		t.Errorf("expected WorkingConfig block body, got: %s", out)
+	}
+}

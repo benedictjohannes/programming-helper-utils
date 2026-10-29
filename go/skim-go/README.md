@@ -13,6 +13,7 @@ When AI coding assistants (like Claude, Gemini, ChatGPT, or Cursor) operate on r
 1. **Context Window Exhaustion & Attention Drift**: Dumping 1,000–3,000 line source files burns through token budget rapidly. More critically, irrelevant implementation details dilute the model's attention, leading to hallucinations and missed context.
 2. **The Go Test Bloat Trap**: In Go repositories, unit test files (`*_test.go`) and table-driven suites often constitute 60–75% of the codebase volume. For instance, in `gin-gonic/gin`, `context_test.go` is over 120KB (~3,500 lines) while the actual `context.go` logic is only 48KB. Ingestion of test files during architectural or logic exploration adds massive noise.
 3. **Repeated File Reading Loops**: Agents often read file A, find a call to a method on struct B in file B, read all of file B, and repeat—quickly exhausting tool call limits and token budgets.
+4. **Syntax Tolerance During Edits**: Codebases being actively refactored or edited often have syntax errors. Traditional strict tools fail completely, leaving the agent unable to inspect surrounding structures.
 
 `skim-go` solves this by giving agents (and developers) a pair of surgical tools:
 - **`glance`**: Instant, high-density outlines of declarations, signatures, struct fields, and line spans—with `*_test.go` files, `Test*` functions, and function bodies filtered out by default.
@@ -41,6 +42,7 @@ flowchart TD
 ## Features
 
 - **Go Standard Library AST (`go/parser`, `go/ast`, `go/printer`)**: Zero third-party dependencies. Parses modern Go 1.22+ syntax, generics, methods, and complex struct tags with native accuracy.
+- **Error-Resilient Parsing & Syntax Diagnostics**: Parses incomplete or syntactically invalid code gracefully during active edits. Emits syntax notices directly without crashing or omitting valid surrounding declarations.
 - **Test-Blind by Default**:
   - Automatically excludes `*_test.go` files during directory and pattern traversals unless `-t` / `--include-tests` is specified.
   - Automatically filters out `func Test*`, `func Benchmark*`, `func Example*`, and `func Fuzz*` inside single files unless `-t` is passed.
@@ -305,6 +307,23 @@ Outline:
   L709-L717    func (engine *Engine) HandleContext(c *Context)
 ```
 
+#### Example 5: Syntax Error Tolerance & In-Flight Diagnostics
+
+If a file contains a syntax error during refactoring or active edits, `skim-go` will not crash; it pinpoints syntax errors right under the file header and outlines valid declarations:
+
+```bash
+skim-go glance testdata/broken.go -s
+```
+```text
+=== testdata/broken.go (14 lines) [! 1 syntax error] ===
+  Syntax Notice: L9: expected operand, found 'var'
+
+Outline:
+  L3-L5        type WorkingConfig struct
+  L7-L10       func brokenFunction()
+  L12-L14      type AnotherValidStruct struct
+```
+
 ---
 
 ### 2. `block` Subcommand
@@ -325,7 +344,7 @@ Options:
   -d, --details             Accepted for CLI uniformity
 ```
 
-#### Example 5: Extract Receiver Method with Line Gutter
+#### Example 6: Extract Receiver Method with Line Gutter
 
 ```bash
 skim-go block context.go Context.JSON
@@ -337,7 +356,7 @@ skim-go block context.go Context.JSON
  1261 | }
 ```
 
-#### Example 6: Extract Raw Snippet (for direct piping or code replacement)
+#### Example 7: Extract Raw Snippet (for direct piping or code replacement)
 
 ```bash
 skim-go block context.go Context.JSON --raw
@@ -348,7 +367,7 @@ func (c *Context) JSON(code int, obj any) {
 }
 ```
 
-#### Example 7: Extract Struct Definition with Details (`-d`)
+#### Example 8: Extract Struct Definition with Details (`-d`)
 
 ```bash
 skim-go block gin.go RouteInfo -d
@@ -363,7 +382,7 @@ skim-go block gin.go RouteInfo -d
    80 | }
 ```
 
-#### Example 8: Ambiguity Diagnostic & Disambiguation Guidance
+#### Example 9: Ambiguity Diagnostic & Disambiguation Guidance
 
 If a target matches more than one declaration in a file, `skim-go` exits with code `3` and offers immediate guidance:
 
@@ -377,6 +396,34 @@ Error: ambiguous target 'redirect' matched 3 candidates in gin.go:
   3) L849-L861  func redirectRequest
 
 Tip: Disambiguate with Type.Method (e.g. Server.Listen) or read line range directly.
+```
+
+#### Example 10: Syntax Notice Inside Extracted Block
+
+If an extracted block contains a syntax error, the warning is surfaced directly above the code block:
+
+```bash
+skim-go block testdata/broken.go brokenFunction
+```
+```text
+=== testdata/broken.go (L7-L10) [! 1 syntax error] ===
+  Syntax Notice: L9: expected operand, found 'var'
+    7 | func brokenFunction() {
+    8 | 	var x =
+    9 | 	var y = 20
+   10 | }
+```
+
+Valid symbols in the same file do not carry the syntax notice tag:
+
+```bash
+skim-go block testdata/broken.go WorkingConfig
+```
+```text
+=== testdata/broken.go (L3-L5) ===
+    3 | type WorkingConfig struct {
+    4 | 	Name string
+    5 | }
 ```
 
 ---

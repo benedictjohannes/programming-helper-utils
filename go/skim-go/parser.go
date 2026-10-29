@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
+	"go/scanner"
 	"go/token"
 	"path/filepath"
 	"regexp"
@@ -45,15 +47,22 @@ type Item struct {
 	BlockText     string
 }
 
+type SyntaxNotice struct {
+	Line    int
+	Col     int
+	Message string
+}
+
 type ParsedFile struct {
-	FilePath   string
-	RelPath    string
-	Content    string
-	Lines      []string
-	TotalLines int
-	Imports    []string
-	Items      []Item
-	IsTest     bool
+	FilePath     string
+	RelPath      string
+	Content      string
+	Lines        []string
+	TotalLines   int
+	Imports      []string
+	Items        []Item
+	IsTest       bool
+	SyntaxErrors []SyntaxNotice
 }
 
 func isTestFile(path string) bool {
@@ -172,7 +181,40 @@ func getBlockText(lines []string, startLine, endLine int) string {
 func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, content, parser.ParseComments)
+	var syntaxErrors []SyntaxNotice
 	if err != nil {
+		var errList scanner.ErrorList
+		if errors.As(err, &errList) {
+			for _, e := range errList {
+				syntaxErrors = append(syntaxErrors, SyntaxNotice{
+					Line:    e.Pos.Line,
+					Col:     e.Pos.Column,
+					Message: e.Msg,
+				})
+			}
+		} else {
+			var singleErr *scanner.Error
+			if errors.As(err, &singleErr) {
+				syntaxErrors = append(syntaxErrors, SyntaxNotice{
+					Line:    singleErr.Pos.Line,
+					Col:     singleErr.Pos.Column,
+					Message: singleErr.Msg,
+				})
+			} else {
+				// If parsing completely failed with no AST returned
+				if f == nil {
+					return nil, err
+				}
+				syntaxErrors = append(syntaxErrors, SyntaxNotice{
+					Line:    1,
+					Col:     1,
+					Message: err.Error(),
+				})
+			}
+		}
+	}
+
+	if f == nil {
 		return nil, err
 	}
 
@@ -390,13 +432,14 @@ func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile
 	}
 
 	return &ParsedFile{
-		FilePath:   filePath,
-		RelPath:    relPath,
-		Content:    content,
-		Lines:      lines,
-		TotalLines: totalLines,
-		Imports:    imports,
-		Items:      items,
-		IsTest:     testFile,
+		FilePath:     filePath,
+		RelPath:      relPath,
+		Content:      content,
+		Lines:        lines,
+		TotalLines:   totalLines,
+		Imports:      imports,
+		Items:        items,
+		IsTest:       testFile,
+		SyntaxErrors: syntaxErrors,
 	}, nil
 }

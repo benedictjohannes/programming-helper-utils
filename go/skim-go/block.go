@@ -135,12 +135,33 @@ func RunBlock(opts BlockOptions) int {
 	}
 
 	chosen := matches[0]
+
+	var blockErrors []SyntaxNotice
+	for _, e := range parsed.SyntaxErrors {
+		if e.Line >= chosen.StartLine && e.Line <= chosen.EndLine {
+			blockErrors = append(blockErrors, e)
+		}
+	}
+
+	errorTag := ""
+	if len(blockErrors) > 0 {
+		n := len(blockErrors)
+		if n == 1 {
+			errorTag = " [! 1 syntax error]"
+		} else {
+			errorTag = fmt.Sprintf(" [! %d syntax errors]", n)
+		}
+	}
+
 	if opts.Raw {
 		for i := chosen.StartLine; i <= chosen.EndLine && i <= len(parsed.Lines); i++ {
 			fmt.Println(parsed.Lines[i-1])
 		}
 	} else {
-		fmt.Printf("=== %s (L%d-L%d) ===\n", relPath, chosen.StartLine, chosen.EndLine)
+		fmt.Printf("=== %s (L%d-L%d)%s ===\n", relPath, chosen.StartLine, chosen.EndLine, errorTag)
+		for _, err := range blockErrors {
+			fmt.Printf("  Syntax Notice: L%d: %s\n", err.Line, err.Message)
+		}
 		for i := chosen.StartLine; i <= chosen.EndLine && i <= len(parsed.Lines); i++ {
 			fmt.Printf("%5d | %s\n", i, parsed.Lines[i-1])
 		}

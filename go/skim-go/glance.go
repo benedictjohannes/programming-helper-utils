@@ -165,10 +165,10 @@ func RunGlance(opts GlanceOptions) int {
 		}
 
 		// When filtering or scanning multiple files, skip files with no matching items
-		if len(opts.Filters) > 0 && len(candidateItems) == 0 {
+		if len(opts.Filters) > 0 && len(candidateItems) == 0 && len(parsed.SyntaxErrors) == 0 {
 			continue
 		}
-		if len(candidateItems) == 0 && len(parsed.Items) == 0 && len(files) > 1 {
+		if len(candidateItems) == 0 && len(parsed.Items) == 0 && len(parsed.SyntaxErrors) == 0 && len(files) > 1 {
 			continue
 		}
 
@@ -181,7 +181,22 @@ func RunGlance(opts GlanceOptions) int {
 		if parsed.IsTest {
 			testTag = " [test]"
 		}
-		fmt.Printf("=== %s (%d lines)%s ===\n", parsed.RelPath, parsed.TotalLines, testTag)
+
+		errorTag := ""
+		if len(parsed.SyntaxErrors) > 0 {
+			n := len(parsed.SyntaxErrors)
+			if n == 1 {
+				errorTag = " [! 1 syntax error]"
+			} else {
+				errorTag = fmt.Sprintf(" [! %d syntax errors]", n)
+			}
+		}
+
+		fmt.Printf("=== %s (%d lines)%s%s ===\n", parsed.RelPath, parsed.TotalLines, testTag, errorTag)
+
+		for _, err := range parsed.SyntaxErrors {
+			fmt.Printf("  Syntax Notice: L%d: %s\n", err.Line, err.Message)
+		}
 
 		if opts.Uses {
 			if len(parsed.Imports) > 0 {
