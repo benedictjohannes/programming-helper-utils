@@ -16,7 +16,7 @@ The `skim-*` family provides fast, zero-bloat syntactic outlines and exact block
 
 ## 2. CLI Interface Standard
 
-Every tool in the family (`skim-rust`, `skim-go`, `skim-ts`) exposes two subcommands:
+Every tool in the family (`skim-rs`, `skim-go`, `skim-ts`) exposes two subcommands:
 
 ```
 skim-<lang> glance [options] <path>...
@@ -129,7 +129,45 @@ Tip: Disambiguate with Class.method (e.g. UserService.getUser) or read line rang
 
 ---
 
-## 4. Agent Workflow Recommendation
+### 3.3 Syntax Error Resilience & In-Flight Diagnostics
+
+Codebases explored by AI agents are frequently in the middle of refactorings or incomplete edits. Rather than failing outright on syntax errors, tools in the `skim-*` family should leverage error-resilient AST/CST parsers where possible (e.g. `ra_ap_syntax` for Rust):
+
+1. **Header Annotation**: If syntax errors are present, the file header reflects the count:
+   ```text
+   === src/broken.rs (13 lines) [! 1 syntax error] ===
+   ```
+2. **Syntax Notices in Glance**: Under the file header, list the error line and message so the agent immediately knows why code might be malformed without halting outlining:
+   ```text
+     Syntax Notice: L6: expected SEMICOLON
+   ```
+3. **Syntax Notices in Block**: If an extracted block contains a syntax error within its line span, display the notice above the block:
+   ```text
+   === src/broken.rs (L5-L8) [! 1 syntax error] ===
+     Syntax Notice: L6: expected SEMICOLON
+       5 | fn broken_function() {
+       6 |     let x = 10
+       7 |     let y = 20;
+       8 | }
+   ```
+4. **Non-Crashing Outlines**: Valid declarations before and after the syntax error are still outlined and retrievable via `block`.
+
+---
+
+## 4. Exit Codes Standard
+
+All `skim-*` tools conform to standard exit codes:
+
+| Code | Meaning | Description |
+|:---:|:---|:---|
+| `0` | **Success** | Command completed normally. |
+| `1` | **Error** | File/path not found, I/O error, or invalid CLI flag. |
+| `2` | **Not Found** | Specified target symbol was not found in the file (`block` subcommand). |
+| `3` | **Ambiguous** | Target matched multiple candidates; disambiguation required (`block` subcommand). |
+
+---
+
+## 5. Agent Workflow Recommendation
 
 LLM agents operating on codebases should follow this loop:
 1. **Survey / Outline**: Run `skim-<lang> glance <path> -s` to understand file structure without wasting tokens.

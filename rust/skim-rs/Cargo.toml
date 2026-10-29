@@ -1,0 +1,17 @@
+[package]
+name = "skim-rs"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+ra_ap_syntax = "0.0.360"
+ra_ap_parser = "0.0.360"
+text-size = "1.1"
+walkdir = "2.5.0"
+ra_ap_edition = "0.0.360"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
