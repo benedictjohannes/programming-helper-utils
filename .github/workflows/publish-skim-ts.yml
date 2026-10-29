@@ -1,0 +1,43 @@
+name: Publish skim-ts to NPM
+
+on:
+  push:
+    tags:
+      - 'skim-ts-v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    defaults:
+      run:
+        working-directory: typescript/skim-ts
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build & Run Tests
+        run: |
+          bun run build
+          bun test
+
+      - name: Publish to NPM
+        run: npm publish --provenance --access public

@@ -42,6 +42,14 @@ describe("CLI Basics", () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain("Error: block requires <file> and <target> arguments.");
   });
+
+  it("handles wildcard glob patterns in glance", () => {
+    const globPattern = path.join(FIXTURES_DIR, "*.ts");
+    const res = runCli(["glance", globPattern]);
+    expect(res.status).toBe(0);
+    expect(res.stdout).toContain("fixtures/classes.ts");
+    expect(res.stdout).toContain("fixtures/casing.ts");
+  });
 });
 
 describe("Classes & Methods (fixtures/classes.ts)", () => {

@@ -52,31 +52,37 @@ flowchart TD
 
 ---
 
-## Platform Support
+## Installation & Usage
 
-- **Linux & macOS**: Supported natively (requires [Bun](https://bun.sh/) in `PATH`).
-- **Windows**: Supported via **WSL2** (Windows Subsystem for Linux). Native CMD/PowerShell is not officially supported without explicitly invoking via `bun ./skim-ts`.
-
----
-
-## Installation
-
-### Linking to Local `PATH` (Linux / macOS)
-
-Once built, symlink the executable to any directory in your `PATH` (e.g., `~/.local/bin` or `/usr/local/bin`):
+### On-Demand (`bunx`)
+Run directly without installing:
 
 ```bash
+bunx skim-ts glance src/ -s
+bunx skim-ts block src/types.ts Target
+```
+
+### Global Install (`bun` / `npm`)
+Install globally to add `skim-ts` directly to your `PATH` (on Linux, macOS, or Windows):
+
+```bash
+# Via Bun (Recommended)
+bun add -g skim-ts
+
+# Via NPM
+npm install -g skim-ts
+```
+
+### From Local Source
+```bash
+cd typescript/skim-ts
+bun install
+bun run build
+
+# Link to PATH (Linux / macOS)
 mkdir -p ~/.local/bin
 ln -sf "$(pwd)/skim-ts" ~/.local/bin/skim-ts
 ```
-
-Ensure `~/.local/bin` is in your `PATH`, then verify the installation:
-
-```bash
-skim-ts --help
-```
-
----
 
 ## Building from Source
 

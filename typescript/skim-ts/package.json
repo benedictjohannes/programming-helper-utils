@@ -1,17 +1,43 @@
 {
   "name": "skim-ts",
-  "version": "1.0.0",
+  "version": "0.0.2",
+  "description": "Fast, AST-based TypeScript and JavaScript outline and code block extractor without test bloat.",
   "type": "module",
-  "private": true,
+  "bin": {
+    "skim-ts": "./skim-ts"
+  },
+  "files": [
+    "skim-ts",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "bun build ./src/cli.ts --target=bun --outfile skim-ts --banner '#!/usr/bin/env bun' && chmod +x skim-ts",
+    "build": "bun build ./src/cli.ts --target=node --outfile skim-ts --banner '#!/usr/bin/env bun' && chmod +x skim-ts",
+    "prepublishOnly": "bun run build && bun test",
     "test": "bun test"
   },
-  "dependencies": {
-    "typescript": "^6.0.3"
+  "keywords": [
+    "typescript",
+    "javascript",
+    "cli",
+    "ast",
+    "outline",
+    "extractor",
+    "bun",
+    "developer-tools",
+    "ai-agents"
+  ],
+  "author": "benedict <yappy.benedict@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/benedictjohannes/programming-helper-utils.git",
+    "directory": "typescript/skim-ts"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/node": "^26.6.6"
+    "@types/node": "^26.6.6",
+    "tinyglobby": "^0.2.17",
+    "typescript": "^6.0.3"
   }
 }

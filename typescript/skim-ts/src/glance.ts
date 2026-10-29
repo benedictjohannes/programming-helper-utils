@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { globSync } from 'tinyglobby';
 import { parseSourceFile, isTestFile } from './parser';
 import type { GlanceOptions, OutlineItem } from './types';
 
@@ -72,8 +73,8 @@ export function collectFiles(targets: string[], includeTests: boolean): string[]
       }
     } else if (target.includes('*') || target.includes('?')) {
       try {
-        const glob = new Bun.Glob(target);
-        for (const match of glob.scanSync({ dot: false })) {
+        const matches = globSync(target, { dot: false });
+        for (const match of matches) {
           if (isSupportedFile(match)) {
             if (includeTests || !isTestFile(match)) {
               files.push(match);
