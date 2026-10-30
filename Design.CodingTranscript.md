@@ -95,10 +95,13 @@ When a file is loaded with platform set to `auto`:
     - `App.vue`: Main layout container; manages active transcript, theme switching, global expand/collapse orchestration, and search coordination.
     - `components/`: UI components.
       - `UploadView.vue`: Initial landing view with tabs for drag-and-drop file upload vs raw text pasting, plus manual platform selector.
+      - `ExportGuideView.vue`: In-app export instructions guide for verified platforms (OpenCode and Antigravity) with copyable prompts and skill templates.
       - `TimelineTurnCard.vue`: Renders an individual conversation turn card with collapsible header, token stats, and body routing.
       - `XmlBubbleView.vue`: Parses and renders XML-like tags (e.g. `<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, `<SKILL>`) as collapsible blocks.
       - `ToolCallsList.vue`: Batched tool executions with side-by-side diff previews for file edits, terminal-style command bars, and expandable stdout.
       - `SearchBar.vue`: Sticky top search bar with match counter, keyboard navigation (`Enter` / `Shift+Enter`), and scope filters.
+    - `assets/`: Static asset templates and text documents.
+      - `antigravity-export-skill.md`: Raw Markdown template for Antigravity's custom export-transcript skill.
     - `parsers/`: Platform adapter modules.
       - `types.ts`: `PlatformParser`, `ParseResult`, and `PlatformInfo` interfaces.
       - `index.ts`: Registry and auto-detection dispatcher.
