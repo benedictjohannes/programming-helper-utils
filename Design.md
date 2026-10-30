@@ -16,12 +16,14 @@ The `skim-*` family provides fast, zero-bloat syntactic outlines and exact block
 
 ## 2. CLI Interface Standard
 
-Every tool in the family (`skim-rs`, `skim-go`, `skim-ts`) exposes two subcommands:
+Every tool in the family (`skim-rs`, `skim-go`, `skim-ts`, `skim-py`) exposes two subcommands:
 
 ```
 skim-<lang> glance [options] <path>...
 skim-<lang> block  [options] <file> <target>
 ```
+
+All `skim-*` tools outline top-level symbols (functions, classes, structs, types, top-level constants) and direct members (methods, fields, variants). Nested inner functions and local classes defined inside function or method bodies are intentionally omitted across all tools to preserve conciseness and avoid outline bloat.
 
 ### 2.1 Subcommand: `glance`
 Outlines structures, types, signatures, and line spans across files or directories.

@@ -38,3 +38,13 @@ class ParsedFile:
     syntax_errors: List[SyntaxNotice] = field(default_factory=list)
     is_test_file: bool = False
     test_ranges: List[tuple[int, int]] = field(default_factory=list)
+    masked_lines: List[int] = field(default_factory=list)
+
+    @property
+    def masking_warning(self) -> str:
+        if not self.masked_lines:
+            return ""
+        locations = ", ".join(f"L{line}" for line in self.masked_lines)
+        count = len(self.masked_lines)
+        noun = "line" if count == 1 else "lines"
+        return f"# parsed with {count} {noun} masked ({locations})"

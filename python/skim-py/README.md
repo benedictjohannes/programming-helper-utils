@@ -310,6 +310,7 @@ skim-py glance tests/fixtures/syntax_error.py -s
 ```
 ```text
 === tests/fixtures/syntax_error.py (12 lines) [! 1 syntax error] ===
+# parsed with 1 line masked (L7)
   Syntax Notice: L7: invalid syntax
 
 Outline:
@@ -318,12 +319,13 @@ Outline:
   L11-L12      def valid_after()
 ```
 
-Surrounding valid functions remain fully extractable via `block`:
+Surrounding valid functions remain fully extractable via `block` (masking warnings are surfaced via stderr):
 
 ```bash
 skim-py block tests/fixtures/syntax_error.py valid_after
 ```
 ```text
+tests/fixtures/syntax_error.py: # parsed with 1 line masked (L7)
 === tests/fixtures/syntax_error.py (L11-L12) ===
    11 | def valid_after():
    12 |     return 2
@@ -335,12 +337,41 @@ And if an extracted block contains a syntax error within its line span, the warn
 skim-py block tests/fixtures/syntax_error.py broken_function
 ```
 ```text
+tests/fixtures/syntax_error.py: # parsed with 1 line masked (L7)
 === tests/fixtures/syntax_error.py (L5-L8) [! 1 syntax error] ===
   Syntax Notice: L7: invalid syntax
     5 | def broken_function():
     6 |     x = 10
     7 |     y =
     8 |     return x
+```
+
+For cascade-prone mid-edit states (such as an unclosed `def foo(x,` header or unclosed bracket structure), `skim-py` masks the entire broken block in one step, marks the masked line range in the notice, and salvages the broken declaration in the outline so it remains targetable by `block`:
+
+```bash
+skim-py glance tests/fixtures/syntax_error_cascade.py -s
+```
+```text
+=== tests/fixtures/syntax_error_cascade.py (11 lines) [! 1 syntax error] ===
+# parsed with 3 lines masked (L5, L6, L7)
+  Syntax Notice: L5: '(' was never closed (L5-L7 masked)
+
+Outline:
+  L1-L2        def valid_before()
+  L5-L7        def broken_header [syntax error]
+  L10-L11      def valid_after()
+```
+
+```bash
+skim-py block tests/fixtures/syntax_error_cascade.py broken_header
+```
+```text
+tests/fixtures/syntax_error_cascade.py: # parsed with 3 lines masked (L5, L6, L7)
+=== tests/fixtures/syntax_error_cascade.py (L5-L7) [! 1 syntax error] ===
+  Syntax Notice: L5: '(' was never closed (L5-L7 masked)
+    5 | def broken_header(x,
+    6 |     y = 1
+    7 |     return y
 ```
 
 ---

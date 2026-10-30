@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .types import OutlineItem, ParsedFile
-from .parser import parse_source_file
+from .parser import parse_source_file, split_source_lines
 
 
 def collect_all_items(items: List[OutlineItem]) -> List[OutlineItem]:
@@ -38,6 +38,8 @@ def run_block(
         return 1
 
     parsed = parse_source_file(file_path, content, include_tests=include_tests)
+    if parsed.masking_warning:
+        sys.stderr.write(f"{file_path}: {parsed.masking_warning}\n")
     all_items = collect_all_items(parsed.items)
 
     matches: List[OutlineItem] = []
@@ -123,7 +125,7 @@ def run_block(
         return 3
 
     chosen = matches[0]
-    src_lines = content.splitlines()
+    src_lines = split_source_lines(content, keepends=False)
     block_lines = src_lines[chosen.start_line - 1 : chosen.end_line]
 
     # Check for syntax errors within block range

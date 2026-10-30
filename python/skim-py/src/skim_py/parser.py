@@ -14,6 +14,43 @@ TEST_DIR_NAMES = {"tests", "test", "testing", "__tests__"}
 TEST_FILE_PATTERN = re.compile(r"^(test_.*|.*_test|conftest)\.py$", re.IGNORECASE)
 TEST_CLASS_PATTERN = re.compile(r"^Test[A-Z0-9_].*")
 TEST_FUNC_PATTERN = re.compile(r"^test(_|[A-Z0-9_]).*")
+HEADER_DEF_PATTERN = re.compile(r"^\s*(async\s+def|def|class)\s+([a-zA-Z_][a-zA-Z0-9_]*)")
+
+
+def get_indent(line: str) -> int:
+    """Return indentation level expanding tabs to 8 spaces (CPython rule)."""
+    expanded = line.expandtabs(8)
+    return len(expanded) - len(expanded.lstrip(" "))
+
+
+def get_block_end(lines: List[str], start: int) -> int:
+    """Find the last indented code line, ignoring blank lines and comments."""
+    indent = get_indent(lines[start])
+    end = start
+    for idx in range(start + 1, len(lines)):
+        stripped = lines[idx].strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if get_indent(lines[idx]) <= indent:
+            break
+        end = idx
+    return end
+
+
+def split_source_lines(content: str, keepends: bool = False) -> List[str]:
+    """Normalize newlines (\r\n, \r -> \n) and split into lines."""
+    norm = content.replace("\r\n", "\n").replace("\r", "\n")
+    if not norm:
+        return []
+    raw = norm.split("\n")
+    if norm.endswith("\n"):
+        raw = raw[:-1]
+        if keepends:
+            return [l + "\n" for l in raw]
+        return raw
+    if keepends:
+        return [l + "\n" for l in raw[:-1]] + [raw[-1]]
+    return raw
 
 
 def is_test_file(file_path: str) -> bool:
@@ -79,7 +116,7 @@ def is_test_func(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
 
 
 def parse_source_file(file_path: str, content: str, include_tests: bool = False) -> ParsedFile:
-    src_lines = content.splitlines()
+    src_lines = split_source_lines(content, keepends=False)
     total_lines = len(src_lines)
     is_test = is_test_file(file_path)
 
@@ -90,14 +127,21 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
     )
 
     tree: Optional[ast.AST] = None
+    salvaged_items: List[OutlineItem] = []
+    masked_block_ends = {}
+    stub_lines = set()
+    masked_lines = set()
+
     try:
         tree = ast.parse(content, filename=file_path, type_comments=True)
     except SyntaxError as first_err:
-        parsed.syntax_errors.append(
-            SyntaxNotice(line=first_err.lineno or 1, message=first_err.msg or "syntax error")
-        )
+        first_line = first_err.lineno or 1
+        first_msg = first_err.msg or "syntax error"
+        notice = SyntaxNotice(line=first_line, message=first_msg)
+        parsed.syntax_errors.append(notice)
+
         # Fallback: Iterative line masking with up to 100 attempts
-        working_lines = content.splitlines(keepends=True)
+        working_lines = split_source_lines(content, keepends=True)
         seen_states = set()
         max_attempts = 100
         current_err: Optional[SyntaxError] = first_err
@@ -111,7 +155,8 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
             line_idx = lineno - 1
             line = working_lines[line_idx]
-            indent = len(line) - len(line.lstrip())
+            indent = get_indent(line)
+            leading_ws = line[: len(line) - len(line.lstrip())]
 
             state_key = (line_idx, line)
             if state_key in seen_states:
@@ -119,10 +164,135 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
                 break
             seen_states.add(state_key)
 
-            if "# syntax error masked" not in line:
-                working_lines[line_idx] = " " * indent + "# syntax error masked\n"
+            # Check if this line is a block header followed by an indented block.
+            # E.g. broken def/class/if header whose masking would cause IndentationError cascades.
+            end_idx = get_block_end(working_lines, line_idx)
+
+            # Check if header matches def/async def/class
+            m_hdr = HEADER_DEF_PATTERN.match(line)
+
+            if end_idx > line_idx or m_hdr:
+                # Update notice message with masked line range if not already suffixed
+                mask_suffix = f"(L{line_idx + 1}-L{end_idx + 1} masked)"
+                for n in parsed.syntax_errors:
+                    if n.line == lineno and "masked)" not in n.message:
+                        n.message = f"{n.message} {mask_suffix}"
+
+                # Salvage header definition if it matches def/async def/class
+                if m_hdr:
+                    k_raw, name = m_hdr.group(1), m_hdr.group(2)
+                    start_l = line_idx + 1
+                    end_l = end_idx + 1
+
+                    # Scan upward for leading decorators
+                    decos = []
+                    for d_idx in range(line_idx - 1, -1, -1):
+                        prev_d = working_lines[d_idx]
+                        stripped_d = prev_d.strip()
+                        if stripped_d.startswith("@"):
+                            start_l = d_idx + 1
+                            decos.insert(0, stripped_d)
+                        elif not stripped_d or stripped_d.startswith("#"):
+                            continue
+                        else:
+                            break
+
+                    deco_prefix = (" ".join(decos) + " ") if decos else ""
+
+                    if k_raw == "class":
+                        cls_is_test = bool(TEST_CLASS_PATTERN.match(name))
+                        class_item = OutlineItem(
+                            name=name,
+                            kind="test" if cls_is_test else "class",
+                            start_line=start_l,
+                            end_line=end_l,
+                            raw_header=f"{deco_prefix}class {name} [syntax error]",
+                        )
+                        # Extract child methods inside the unparsable class
+                        k = line_idx + 1
+                        while k <= end_idx:
+                            m_ch = HEADER_DEF_PATTERN.match(working_lines[k])
+                            if m_ch and m_ch.group(1) in ("def", "async def"):
+                                ch_k_raw, ch_name = m_ch.group(1), m_ch.group(2)
+                                ch_start = k + 1
+                                # Scan upward for method decorators inside the class
+                                ch_decos = []
+                                for cj in range(k - 1, line_idx, -1):
+                                    prev_cj = working_lines[cj]
+                                    str_cj = prev_cj.strip()
+                                    if str_cj.startswith("@"):
+                                        ch_start = cj + 1
+                                        ch_decos.insert(0, str_cj)
+                                    elif not str_cj or str_cj.startswith("#"):
+                                        continue
+                                    else:
+                                        break
+
+                                ch_deco_prefix = (" ".join(ch_decos) + " ") if ch_decos else ""
+
+                                ch_end_idx = min(get_block_end(working_lines, k), end_idx)
+                                ch_end = ch_end_idx + 1
+                                ch_is_test = bool(TEST_FUNC_PATTERN.match(ch_name))
+                                ch_kind = "test" if ch_is_test else "method"
+                                class_item.children.append(
+                                    OutlineItem(
+                                        name=ch_name,
+                                        kind=ch_kind,
+                                        start_line=ch_start,
+                                        end_line=ch_end,
+                                        raw_header=f"{ch_deco_prefix}{ch_k_raw} {ch_name}()",
+                                        parent_name=name,
+                                    )
+                                )
+                                k = ch_end_idx + 1
+                            else:
+                                k += 1
+
+                        salvaged_items.append(class_item)
+                    else:
+                        fn_is_test = bool(TEST_FUNC_PATTERN.match(name))
+                        fn_kind = "test" if fn_is_test else ("async def" if "async" in k_raw else "function")
+                        # Check if method inside an outer class, skipping comments and blank lines
+                        parent_cls = None
+                        for p_idx in range(line_idx - 1, -1, -1):
+                            prev_l = working_lines[p_idx]
+                            stripped_p = prev_l.strip()
+                            if not stripped_p or stripped_p.startswith("#"):
+                                continue
+                            if get_indent(prev_l) < indent:
+                                m_p = re.match(r"^\s*class\s+([a-zA-Z_][a-zA-Z0-9_]*)", prev_l)
+                                if m_p:
+                                    parent_cls = m_p.group(1)
+                                break
+
+                        salvaged_items.append(
+                            OutlineItem(
+                                name=name,
+                                kind="test" if fn_is_test else ("method" if parent_cls else fn_kind),
+                                start_line=start_l,
+                                end_line=end_l,
+                                raw_header=f"{deco_prefix}{k_raw} {name} [syntax error]",
+                                parent_name=parent_cls,
+                            )
+                        )
+
+            # Keep decorators attached to a harmless definition stub. Otherwise
+            # use pass so masking the only statement does not empty its suite.
+            if m_hdr:
+                stub = (
+                    "class __skim_masked__: pass\n"
+                    if m_hdr.group(1) == "class"
+                    else "def __skim_masked__(): pass\n"
+                )
+                working_lines[line_idx] = leading_ws + stub
+                stub_lines.add(lineno)
             else:
-                working_lines[line_idx] = " " * indent + "pass\n"
+                working_lines[line_idx] = leading_ws + "pass\n"
+            for k in range(line_idx + 1, end_idx + 1):
+                working_lines[k] = "# syntax error masked\n"
+
+            masked_lines.update(range(line_idx + 1, end_idx + 2))
+            masked_block_ends[lineno] = end_idx + 1
 
             try:
                 tree = ast.parse("".join(working_lines), filename=file_path, type_comments=True)
@@ -142,7 +312,63 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
         )
         return parsed
 
+    parsed.masked_lines = sorted(masked_lines)
+
+    def recovered_end(node: ast.AST) -> int:
+        end = get_end_line(node)
+        return max([end] + [
+            masked_end for start, masked_end in masked_block_ends.items()
+            if node.lineno <= start <= end
+        ])
+
+    def merge_salvaged() -> None:
+        if not salvaged_items:
+            return
+        for s_item in salvaged_items:
+            # The AST still contains excluded test classes, but parsed.items
+            # does not. Do not promote their recovered methods to top level.
+            if not include_tests and any(
+                start <= s_item.start_line <= end
+                for start, end in parsed.test_ranges
+            ):
+                continue
+            # Check test filtering for salvaged items
+            if s_item.kind == "test":
+                parsed.test_ranges.append((s_item.start_line, s_item.end_line))
+                if not include_tests:
+                    continue
+
+            if s_item.parent_name:
+                parent = next(
+                    (it for it in parsed.items
+                     if it.name == s_item.parent_name and it.kind in ("class", "test")
+                     and it.start_line <= s_item.start_line <= it.end_line),
+                    None,
+                )
+                if parent:
+                    parent.children.append(s_item)
+                    parent.children.sort(key=lambda ch: ch.start_line)
+                    parent.end_line = max(parent.end_line, s_item.end_line)
+                else:
+                    parsed.items.append(s_item)
+            else:
+                # If s_item is a class, filter its child test methods if include_tests is False
+                if s_item.kind in ("class", "test"):
+                    filtered_children = []
+                    for ch in s_item.children:
+                        if ch.kind == "test":
+                            parsed.test_ranges.append((ch.start_line, ch.end_line))
+                            if not include_tests:
+                                continue
+                        filtered_children.append(ch)
+                    s_item.children = filtered_children
+
+                parsed.items.append(s_item)
+
+        parsed.items.sort(key=lambda it: it.start_line)
+
     if tree is None:
+        merge_salvaged()
         return parsed
 
     # 1. Collect imports
@@ -155,11 +381,15 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
     # 2. Extract outline items
     for node in tree.body:
+        # Skip internal mask stubs
+        if node.lineno in stub_lines:
+            continue
+
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             is_async = isinstance(node, ast.AsyncFunctionDef)
             is_test_fn = is_test_func(node)
             start_l = get_start_line(node)
-            end_l = get_end_line(node)
+            end_l = recovered_end(node)
 
             if is_test_fn:
                 parsed.test_ranges.append((start_l, end_l))
@@ -186,7 +416,7 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
         elif isinstance(node, ast.ClassDef):
             is_test_cls = is_test_class(node)
             start_l = get_start_line(node)
-            end_l = get_end_line(node)
+            end_l = recovered_end(node)
 
             if is_test_cls:
                 parsed.test_ranges.append((start_l, end_l))
@@ -208,11 +438,14 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
             # Process class body
             for child in node.body:
+                if child.lineno in stub_lines:
+                    continue
+
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     child_async = isinstance(child, ast.AsyncFunctionDef)
                     child_test = is_test_func(child)
                     ch_start = get_start_line(child)
-                    ch_end = get_end_line(child)
+                    ch_end = recovered_end(child)
 
                     if child_test:
                         parsed.test_ranges.append((ch_start, ch_end))
@@ -297,4 +530,5 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
                         )
                     )
 
+    merge_salvaged()
     return parsed

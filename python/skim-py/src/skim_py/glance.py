@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .types import OutlineItem, ParsedFile
-from .parser import parse_source_file, is_test_file
+from .parser import parse_source_file, is_test_file, split_source_lines
 
 
 IGNORED_DIRS = {
@@ -121,7 +121,7 @@ def run_glance(
             sys.stderr.write(f"Error reading {file_path}: {err}\n")
             continue
 
-        src_lines = content.splitlines()
+        src_lines = split_source_lines(content, keepends=False)
         parsed = parse_source_file(file_path, content, include_tests=include_tests)
 
         if filters:
@@ -155,6 +155,8 @@ def run_glance(
             rel_path = file_path
 
         print(f"=== {rel_path} ({parsed.total_lines} lines){test_info}{error_tag} ===")
+        if parsed.masking_warning:
+            print(parsed.masking_warning)
 
         for err in parsed.syntax_errors:
             print(f"  Syntax Notice: L{err.line}: {err.message}")
