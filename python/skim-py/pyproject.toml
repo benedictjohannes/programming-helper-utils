@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "skim-python"
-version = "0.0.2"
+version = "0.0.3"
 description = "Language-aware, AST-resilient outline and verbatim code extractor for Python tailored for AI agents"
 readme = "README.md"
 license = "MIT"
@@ -38,3 +38,7 @@ skim-py = "skim_py.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/skim_py"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

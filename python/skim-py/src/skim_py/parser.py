@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 import ast
-import os
 import re
 from pathlib import Path
-from typing import Optional, List, Tuple
+from typing import Optional, List
 
 from .types import OutlineItem, ParsedFile, SyntaxNotice
 
@@ -24,7 +23,11 @@ def get_indent(line: str) -> int:
 
 
 def get_block_end(lines: List[str], start: int) -> int:
-    """Find the last indented code line, ignoring blank lines and comments."""
+    """Find the last indented code line, ignoring blank lines and comments.
+
+    Known limit: a multi-line string with content at column 0, or a closing
+    ``):`` at the header's indent, ends the block early.
+    """
     indent = get_indent(lines[start])
     end = start
     for idx in range(start + 1, len(lines)):
@@ -35,6 +38,49 @@ def get_block_end(lines: List[str], start: int) -> int:
             break
         end = idx
     return end
+
+
+def collect_decorators(lines: List[str], header_idx: int, floor: int):
+    """Scan upward from a header for decorators, including multi-line ones.
+
+    Returns (start_idx or None, decorator strings in source order). Multi-line
+    decorators are found by bracket balancing; brackets inside strings are not
+    handled specially, so an unbalanced one can hide the decorator.
+    """
+    start: Optional[int] = None
+    decos: List[str] = []
+    idx = header_idx - 1
+    while idx >= floor:
+        s = lines[idx].strip()
+        if not s or s.startswith("#"):
+            idx -= 1
+            continue
+        if s.startswith("@"):
+            decos.insert(0, s)
+            start = idx
+            idx -= 1
+            continue
+        if s[-1] in ")]}":
+            depth = 0
+            found = None
+            for j in range(idx, floor - 1, -1):
+                t = lines[j].strip()
+                depth += sum(t.count(c) for c in ")]}") - sum(t.count(c) for c in "([{")
+                if depth <= 0:
+                    if t.startswith("@"):
+                        found = j
+                    break
+            if found is not None:
+                parts = [
+                    l.strip() for l in lines[found : idx + 1]
+                    if l.strip() and not l.strip().startswith("#")
+                ]
+                decos.insert(0, " ".join(parts))
+                start = found
+                idx = found - 1
+                continue
+        break
+    return start, decos
 
 
 def split_source_lines(content: str, keepends: bool = False) -> List[str]:
@@ -142,6 +188,7 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
         # Fallback: Iterative line masking with up to 100 attempts
         working_lines = split_source_lines(content, keepends=True)
+        original_len = len(working_lines)
         seen_states = set()
         max_attempts = 100
         current_err: Optional[SyntaxError] = first_err
@@ -156,7 +203,9 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
             line_idx = lineno - 1
             line = working_lines[line_idx]
             indent = get_indent(line)
-            leading_ws = line[: len(line) - len(line.lstrip())]
+            leading_ws = line[: len(line) - len(line.lstrip(" \t"))]
+            if not line.strip():
+                leading_ws = ""
 
             state_key = (line_idx, line)
             if state_key in seen_states:
@@ -173,7 +222,10 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
             if end_idx > line_idx or m_hdr:
                 # Update notice message with masked line range if not already suffixed
-                mask_suffix = f"(L{line_idx + 1}-L{end_idx + 1} masked)"
+                if end_idx > line_idx:
+                    mask_suffix = f"(L{line_idx + 1}-L{end_idx + 1} masked)"
+                else:
+                    mask_suffix = f"(L{line_idx + 1} masked)"
                 for n in parsed.syntax_errors:
                     if n.line == lineno and "masked)" not in n.message:
                         n.message = f"{n.message} {mask_suffix}"
@@ -185,17 +237,9 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
                     end_l = end_idx + 1
 
                     # Scan upward for leading decorators
-                    decos = []
-                    for d_idx in range(line_idx - 1, -1, -1):
-                        prev_d = working_lines[d_idx]
-                        stripped_d = prev_d.strip()
-                        if stripped_d.startswith("@"):
-                            start_l = d_idx + 1
-                            decos.insert(0, stripped_d)
-                        elif not stripped_d or stripped_d.startswith("#"):
-                            continue
-                        else:
-                            break
+                    deco_start, decos = collect_decorators(working_lines, line_idx, 0)
+                    if deco_start is not None:
+                        start_l = deco_start + 1
 
                     deco_prefix = (" ".join(decos) + " ") if decos else ""
 
@@ -216,17 +260,11 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
                                 ch_k_raw, ch_name = m_ch.group(1), m_ch.group(2)
                                 ch_start = k + 1
                                 # Scan upward for method decorators inside the class
-                                ch_decos = []
-                                for cj in range(k - 1, line_idx, -1):
-                                    prev_cj = working_lines[cj]
-                                    str_cj = prev_cj.strip()
-                                    if str_cj.startswith("@"):
-                                        ch_start = cj + 1
-                                        ch_decos.insert(0, str_cj)
-                                    elif not str_cj or str_cj.startswith("#"):
-                                        continue
-                                    else:
-                                        break
+                                ch_deco_start, ch_decos = collect_decorators(
+                                    working_lines, k, line_idx + 1
+                                )
+                                if ch_deco_start is not None:
+                                    ch_start = ch_deco_start + 1
 
                                 ch_deco_prefix = (" ".join(ch_decos) + " ") if ch_decos else ""
 
@@ -287,15 +325,24 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
                 working_lines[line_idx] = leading_ws + stub
                 stub_lines.add(lineno)
             else:
-                working_lines[line_idx] = leading_ws + "pass\n"
+                working_lines[line_idx] = leading_ws + "# syntax error masked\n"
             for k in range(line_idx + 1, end_idx + 1):
                 working_lines[k] = "# syntax error masked\n"
+            assert len(working_lines) == original_len
 
             masked_lines.update(range(line_idx + 1, end_idx + 2))
             masked_block_ends[lineno] = end_idx + 1
 
             try:
-                tree = ast.parse("".join(working_lines), filename=file_path, type_comments=True)
+                try:
+                    tree = ast.parse("".join(working_lines), filename=file_path, type_comments=True)
+                except IndentationError as ind_err:
+                    # Masking the only statement of a suite left it empty; use pass instead.
+                    if m_hdr or "expected an indented block" not in (ind_err.msg or ""):
+                        raise
+                    working_lines[line_idx] = leading_ws + "pass\n"
+                    assert len(working_lines) == original_len
+                    tree = ast.parse("".join(working_lines), filename=file_path, type_comments=True)
                 break  # Successful recovery!
             except SyntaxError as next_err:
                 current_err = next_err

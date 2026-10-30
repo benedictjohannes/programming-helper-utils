@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 import io
 import sys
 import tempfile
@@ -187,6 +188,45 @@ def valid_after():
         self.assertEqual(parsed.syntax_errors[0].line, 4)
         self.assertIn("(L4-L6 masked)", parsed.syntax_errors[0].message)
 
+    def test_error_inside_dict_recovers(self):
+        code = 'config = {\n    "a": 1,\n    "b": ,\n    "c": 3,\n}\ndef valid(): ...\n'
+        parsed = parse_source_file("test.py", code)
+        self.assertIn("valid", [it.name for it in parsed.items])
+
+    def test_stray_indent_recovers(self):
+        code = "def a(): ...\n    x = 1\ndef valid(): ...\n"
+        parsed = parse_source_file("test.py", code)
+        names = [it.name for it in parsed.items]
+        self.assertIn("valid", names)
+
+    def test_bad_parameter_in_multiline_def_recovers(self):
+        code = "def bad(\n    a,\n    1b,\n):\n    return a\n\ndef valid(): ...\n"
+        parsed = parse_source_file("test.py", code)
+        self.assertIn("valid", [it.name for it in parsed.items])
+
+    def test_multiline_decorator_is_salvaged(self):
+        code = """@foo(
+    a,
+    b,
+)
+def broken(x,
+    return x
+
+class K(Base):
+    @bar(
+        1,
+    )
+    def broken_m(self,
+        return 1
+
+def valid(): ...
+"""
+        parsed = parse_source_file("test.py", code)
+        item = next(it for it in parsed.items if it.name == "broken")
+        self.assertEqual(item.start_line, 1)
+        self.assertIn("@foo( a, b, )", item.raw_header)
+        self.assertIn("valid", [it.name for it in parsed.items])
+
     def test_salvaged_broken_class_methods(self):
         code = """class BrokenClass(Base,
     def method_one(self):
@@ -333,7 +373,7 @@ class TestSkimPyCLI(unittest.TestCase):
 
     def test_python_version_guard(self):
         err = io.StringIO()
-        with unittest.mock.patch.object(sys, "version_info", (3, 9, 7)):
+        with patch.object(sys, "version_info", (3, 9, 7)):
             with redirect_stderr(err):
                 result = main(["glance", "foo.py"])
         self.assertEqual(result, 1)
