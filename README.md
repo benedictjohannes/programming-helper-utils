@@ -46,6 +46,7 @@ flowchart TD
 | **Go** | `skim-go` | [![Go Reference](https://pkg.go.dev/badge/github.com/benedictjohannes/programming-helper-utils/go/skim-go.svg)](https://pkg.go.dev/github.com/benedictjohannes/programming-helper-utils/go/skim-go) | `go/parser` (stdlib, zero deps) | [`go/skim-go`](go/skim-go/) |
 | **Rust** | `skim-rs` | [![Crates.io](https://img.shields.io/crates/v/skim-rs.svg)](https://crates.io/crates/skim-rs) | `ra_ap_syntax` (Rust Analyzer) | [`rust/skim-rs`](rust/skim-rs/) |
 | **TypeScript / JS** | `skim-ts` | [![npm version](https://img.shields.io/npm/v/skim-ts.svg)](https://www.npmjs.com/package/skim-ts) | TypeScript Compiler API | [`typescript/skim-ts`](typescript/skim-ts/) |
+| **Python** | `skim-py` | [![PyPI version](https://img.shields.io/pypi/v/skim-python.svg)](https://pypi.org/project/skim-python/) | `ast` (stdlib, zero deps) | [`python/skim-py`](python/skim-py/) |
 
 All tools adhere to the common standard defined in [Design.md](Design.md).
 
@@ -105,6 +106,20 @@ npx skim-ts block src/index.ts MyClass.run
 # Global install
 bun add -g skim-ts
 # or: npm install -g skim-ts
+```
+
+### Python (`skim-py`)
+
+Run on-demand or install globally via `uv` or `pipx`:
+
+```bash
+# On-demand
+uvx --from skim-python skim-py glance src/ -s
+pipx run --spec skim-python skim-py block src/main.py App.run
+
+# Global install
+uv tool install skim-python
+# or: pipx install skim-python
 ```
 
 ---

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "skim-python"
+version = "0.0.1"
+description = "Language-aware, AST-resilient outline and verbatim code extractor for Python tailored for AI agents"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "Benedict Johannes" }
+]
+requires-python = ">=3.10"
+dependencies = []
+keywords = ["ast", "code-intelligence", "ai-agents", "developer-tools", "outline", "extractor"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+
+[project.urls]
+Homepage = "https://github.com/benedictjohannes/programming-helper-utils"
+Repository = "https://github.com/benedictjohannes/programming-helper-utils"
+Issues = "https://github.com/benedictjohannes/programming-helper-utils/issues"
+
+[project.scripts]
+skim-py = "skim_py.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/skim_py"]
