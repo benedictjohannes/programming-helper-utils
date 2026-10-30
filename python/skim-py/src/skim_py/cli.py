@@ -68,6 +68,11 @@ Agent Operational Workflow:
 
 
 def main(args: Optional[List[str]] = None) -> int:
+    if sys.version_info < (3, 10):
+        current_ver = f"{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}"
+        sys.stderr.write(f"Error: skim-py requires Python 3.10+ (running on Python {current_ver}).\n")
+        return 1
+
     if args is None:
         args = sys.argv[1:]
 

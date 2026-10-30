@@ -331,6 +331,14 @@ class TestSkimPyCLI(unittest.TestCase):
             self.assertEqual(stdout.getvalue(), original)
             self.assertIn("# parsed with 2 lines masked (L2, L3)", stderr.getvalue())
 
+    def test_python_version_guard(self):
+        err = io.StringIO()
+        with unittest.mock.patch.object(sys, "version_info", (3, 9, 7)):
+            with redirect_stderr(err):
+                result = main(["glance", "foo.py"])
+        self.assertEqual(result, 1)
+        self.assertIn("Error: skim-py requires Python 3.10+", err.getvalue())
+
     def test_block_casing_resolution(self):
         casing_path = str(FIXTURES_DIR / "casing.py")
 
