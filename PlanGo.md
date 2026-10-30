@@ -46,7 +46,7 @@ Build a fast, dependency-free Go outline and code block extractor conforming to 
 ## 4. Verification & Testing Strategy
 
 ### Step 1: Smoke Testing (First — Rapid Validation)
-Build the binary (`go build -o skim-go .` in `go/skim-go/`), then execute from within the target repository (`cwd = testingRepositories/go`, a clone of gin-gonic/gin):
+Build the binary (`go build -o skim-go .` in `go/skim-go/`), then execute from within the target repository (`cwd = testingRepositories/gin`, cloning gin-gonic/gin):
 ```bash
 # In cwd = testingRepositories/go:
 ../../go/skim-go/skim-go glance gin.go -s -u

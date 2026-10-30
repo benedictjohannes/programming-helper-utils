@@ -80,7 +80,7 @@ Build a fast, dependency-free Python AST-based outline and verbatim code block e
 ## 5. Verification & Testing Strategy
 
 ### Step 1: Smoke Testing with Advanced Python AST
-Target repository: `testingRepositories/pydantic` (`pydantic/pydantic`):
+Target repository: `testingRepositories/pydantic` (clone `pydantic/pydantic`):
 ```bash
 # Outline test:
 skim-py glance pydantic/main.py -s -u

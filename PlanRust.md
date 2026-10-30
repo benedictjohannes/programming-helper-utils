@@ -57,7 +57,7 @@ Build a fast, AST-based Rust outline and code block extractor conforming to [Des
 ## 4. Verification & Testing Strategy
 
 ### Step 1: Smoke Testing (Rapid Real-World Validation)
-Build the release binary (`cargo build --release` in `rust/skim-rs/`), then execute from within the target repository (`cwd = testingRepositories/rust`, cloned from `tokio-rs/axum`):
+Build the release binary (`cargo build --release` in `rust/skim-rs/`), then execute from within the target repository (`cwd = testingRepositories/axum`, cloning `tokio-rs/axum`):
 ```bash
 # In cwd = testingRepositories/rust:
 ../../rust/skim-rs/target/release/skim-rs glance axum/src/lib.rs -s -u

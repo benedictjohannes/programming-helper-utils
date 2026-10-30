@@ -47,7 +47,7 @@ Build a fast, AST-based TypeScript/JavaScript outline and code block extractor c
 ## 4. Verification & Testing Strategy
 
 ### Step 1: Smoke Testing (First — Rapid Validation)
-Build or bundle the executable script (`skim-ts` in `typescript/skim-ts/`), then execute from within the target repository (`cwd = testingRepositories/typescript`, a clone of colinhacks/zod):
+Build or bundle the executable script (`skim-ts` in `typescript/skim-ts/`), then execute from within the target repository (`cwd = testingRepositories/zod`, cloning colinhacks/zod):
 ```bash
 # In cwd = testingRepositories/typescript:
 ../../typescript/skim-ts/skim-ts glance src/types.ts -s -u
