@@ -1,9 +1,14 @@
+# Developmental Helper Toolkit 
+
+This repository is a collection of tools that helped with development, especially in the age of agentic coding, which includes:
+- [`skim-*`](#skim-): Language-specific, AST-resilient outlines and verbatim code extractors tailored for AI coding agents.
+- [Transcript Viewer](#transcript-viewer): Coding agent exported transcript viewer.
+
 # `skim-*`
 
 [![Specification](https://img.shields.io/badge/Spec-Design.md-informational.svg)](Design.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Language-aware, AST-resilient outlines and verbatim code extractors tailored for AI coding agents.**
 
 A unified suite of lightweight, high-performance developer tools conforming to the [`skim-*` Family Design Specification](Design.md).
 
@@ -150,6 +155,21 @@ Finally, ask whether to configure this globally or repo-specifically, and update
 
 ---
 
-## License
+# Transcript Viewer
+
+[![Specification](https://img.shields.io/badge/Spec-Design.TranscriptViewer.md-informational.svg)](Design.TranscriptViewer.md)
+
+A local-only, compile-to-single-HTML web application designed to visualize, inspect, and navigate conversation transcripts produced by coding agents and LLMs. 
+
+- **Privacy First**: Everything runs client-side in the browser—nothing leaves your computer.
+- **Multi-Platform Support**: Tested on **Antigravity** and **OpenCode**; experimental support for **Claude Code** and **Standard Chat / OpenAI**.
+- **Deep Collapsibility**: Full turns, XML tag bubbles (`<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, etc.), and individual tool calls can be expanded or collapsed recursively.
+- **Rich Visualizations**: Side-by-side file edit diffs, command-line blocks, token usage statistics, and model thinking/reasoning blocks.
+- **In-Memory Search**: Full-text search with match cycling (`Enter` / `Shift+Enter`) and scope filters.
+- **Single HTML Distribution**: Compiles via Bun + Vite into a standalone `dist/index.html` with zero external runtime dependencies.
+
+See [`transcriptViewer/README.md`](transcriptViewer/README.md) for build instructions and [`Design.TranscriptViewer.md`](Design.TranscriptViewer.md) for architectural details.
+
+# License
 
 MIT © Benedict Johannes
