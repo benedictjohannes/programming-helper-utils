@@ -1,13 +1,13 @@
-# Specification & Architecture: TranscriptViewer
+# Specification & Architecture: Coding Transcript (`coding-transcript`)
 
 ## Overview & Rationale
 
-`transcriptViewer` is a compile-to-single-HTML web application designed to visualize, inspect, and navigate conversation transcripts produced by coding agents and LLM tools.
+`coding-transcript` is a compile-to-single-HTML web application designed to visualize, inspect, and navigate conversation transcripts produced by coding agents and LLM tools.
 
 ### Rationale & Privacy Guarantee
 Agent transcripts (such as `transcript.jsonl` or session logs) are valuable artifacts for post-mortems, pair-programming discussions, code reviews, and prompt engineering. However, raw JSON/JSONL files are tedious to read manually, and sharing sensitive conversation logs with third-party web services introduces privacy risks.
 
-TranscriptViewer addresses this by compiling into a standalone, single-file HTML bundle (`dist/index.html`). All parsing, token calculation, and searching execute strictly client-side inside the user's browser: **nothing leaves the computer**. It can be hosted on a static server, accessed via `file://`, or distributed directly as an HTML file.
+`coding-transcript` addresses this by compiling into a standalone, single-file HTML bundle (`dist/index.html`). All parsing, token calculation, and searching execute strictly client-side inside the user's browser: **nothing leaves the computer**. It can be hosted on a static server (e.g. Cloudflare Pages at `coding-transcript.encelerate.com`), accessed via `file://`, or distributed directly as an HTML file.
 
 ---
 
@@ -83,7 +83,7 @@ When a file is loaded with platform set to `auto`:
 
 ## File & Component Structure
 
-- `transcriptViewer/`: Root of the transcript viewer module.
+- `coding-transcript/`: Root of the transcript viewer module.
   - `fixtures/`: Sample transcripts used for verification and regression checks.
     - `audigma.antigravity.jsonl`: Real-world Antigravity transcript fixture.
     - `audigma.opencode.json`: Real-world OpenCode session export fixture.

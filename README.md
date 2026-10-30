@@ -2,7 +2,7 @@
 
 This repository is a collection of tools that helped with development, especially in the age of agentic coding, which includes:
 - [`skim-*`](#skim-): Language-specific, AST-resilient outlines and verbatim code extractors tailored for AI coding agents.
-- [Transcript Viewer](#transcript-viewer): Coding agent exported transcript viewer.
+- [Coding Transcript](#coding-transcript): Coding agent exported transcript viewer.
 
 # `skim-*`
 
@@ -155,9 +155,9 @@ Finally, ask whether to configure this globally or repo-specifically, and update
 
 ---
 
-# Transcript Viewer
+# Coding Transcript
 
-[![Specification](https://img.shields.io/badge/Spec-Design.TranscriptViewer.md-informational.svg)](Design.TranscriptViewer.md)
+[![Specification](https://img.shields.io/badge/Spec-Design.CodingTranscript.md-informational.svg)](Design.CodingTranscript.md)
 
 A local-only, compile-to-single-HTML web application designed to visualize, inspect, and navigate conversation transcripts produced by coding agents and LLMs. 
 
@@ -168,7 +168,7 @@ A local-only, compile-to-single-HTML web application designed to visualize, insp
 - **In-Memory Search**: Full-text search with match cycling (`Enter` / `Shift+Enter`) and scope filters.
 - **Single HTML Distribution**: Compiles via Bun + Vite into a standalone `dist/index.html` with zero external runtime dependencies.
 
-See [`transcriptViewer/README.md`](transcriptViewer/README.md) for build instructions and [`Design.TranscriptViewer.md`](Design.TranscriptViewer.md) for architectural details.
+See [`coding-transcript/README.md`](coding-transcript/README.md) for build instructions and [`Design.CodingTranscript.md`](Design.CodingTranscript.md) for architectural details.
 
 # License
 

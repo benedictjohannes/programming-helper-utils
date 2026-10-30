@@ -1,4 +1,4 @@
-# Universal Transcript Viewer
+# Coding Transcript Viewer
 
 A lightweight, standalone, single-file HTML viewer for AI agent conversation transcripts across multiple platforms.
 
@@ -39,17 +39,17 @@ Transcripts are valuable records to review with team members for prompt refineme
 Prerequisites: [Bun](https://bun.sh/) (or Node.js 18+).
 
 ```bash
-cd transcriptViewer
+cd coding-transcript
 bun install
 bun run build
 ```
 
 The compiled standalone viewer will be output at:
 ```
-transcriptViewer/dist/index.html
+coding-transcript/dist/index.html
 ```
 
-You can open this file directly in any modern browser via `file://`, double-click it, or host it on any static web server.
+You can open this file directly in any modern browser via `file://`, double-click it, or host it on any static web server (such as Cloudflare Pages).
 
 ## Development
 
@@ -61,4 +61,4 @@ bun run dev
 
 ## Developer Specification
 
-For detailed architectural specifications, intermediate data models, and parser development guidelines, see [Design.TranscriptViewer.md](../Design.TranscriptViewer.md).
+For detailed architectural specifications, intermediate data models, and parser development guidelines, see [Design.CodingTranscript.md](../Design.CodingTranscript.md).
