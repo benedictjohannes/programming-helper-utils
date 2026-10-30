@@ -1,7 +1,7 @@
 # Plan: `skim-go`
 
 ## 1. Objective
-Build a fast, dependency-free Go outline and code block extractor conforming to [Design.md](Design.md).
+Build a fast, dependency-free Go outline and code block extractor conforming to [Design.Skim.md](Design.Skim.md).
 
 ## 2. Architecture & Technologies
 - **Location**: `go/skim-go/`

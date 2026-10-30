@@ -1,7 +1,7 @@
 # Plan: Python Skim Utility (`skim-python` / CLI `skim-py`)
 
 ## 1. Objective
-Build a fast, dependency-free Python AST-based outline and verbatim code block extractor conforming to [Design.md](Design.md).
+Build a fast, dependency-free Python AST-based outline and verbatim code block extractor conforming to [Design.Skim.md](Design.Skim.md).
 
 ## 2. Architecture & Technologies
 - **Location**: `python/skim-py/`
@@ -51,7 +51,7 @@ Build a fast, dependency-free Python AST-based outline and verbatim code block e
   - `3`: Ambiguous (multiple candidates matched in `block`)
 
 ### Syntax Error Handling (In-Flight Edits)
-- Capture `SyntaxError` from `ast.parse` and emit syntax notices conforming to [Design.md](Design.md) without crashing.
+- Capture `SyntaxError` from `ast.parse` and emit syntax notices conforming to [Design.Skim.md](Design.Skim.md) without crashing.
 
 ## 4. Packaging, Distribution & PyPI Strategy
 

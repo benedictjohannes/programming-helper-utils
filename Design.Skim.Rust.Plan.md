@@ -1,7 +1,7 @@
 # Plan: `skim-rs`
 
 ## 1. Objective
-Build a fast, AST-based Rust outline and code block extractor conforming to [Design.md](Design.md).
+Build a fast, AST-based Rust outline and code block extractor conforming to [Design.Skim.md](Design.Skim.md).
 
 ## 2. Architecture & Technologies
 - **Location**: `rust/skim-rs/`

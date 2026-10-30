@@ -1,7 +1,7 @@
 # Plan: `skim-ts`
 
 ## 1. Objective
-Build a fast, AST-based TypeScript/JavaScript outline and code block extractor conforming to [Design.md](Design.md).
+Build a fast, AST-based TypeScript/JavaScript outline and code block extractor conforming to [Design.Skim.md](Design.Skim.md).
 
 ## 2. Architecture & Technologies
 - **Location**: `typescript/skim-ts`

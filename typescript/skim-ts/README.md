@@ -5,7 +5,7 @@
 
 A fast, zero-bloat, AST-resilient TypeScript and JavaScript outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
-> Part of the [`skim-*` family - check out the complete suite](https://github.com/benedictjohannes/programming-helper-utils). Conforms to the [`skim-*` Family Design Specification](https://github.com/benedictjohannes/programming-helper-utils/blob/master/Design.md).
+> Part of the [`skim-*` family - check out the complete suite](https://github.com/benedictjohannes/programming-helper-utils). Conforms to the [`skim-*` Family Design Specification](https://github.com/benedictjohannes/programming-helper-utils/blob/master/Design.Skim.md).
 
 ---
 
