@@ -17,7 +17,7 @@ export function detectAndParse(rawText: string, forcedPlatformId?: string): Pars
       platform: {
         id: 'unknown',
         name: 'Unknown',
-        badgeClass: 'bg-slate-700/30 text-slate-400 border border-slate-700',
+        dotColor: 'bg-zinc-400',
       },
       timeline: [],
       recordCount: 0,

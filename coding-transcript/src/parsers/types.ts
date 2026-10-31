@@ -1,7 +1,8 @@
 export interface PlatformInfo {
   id: string;
   name: string;
-  badgeClass: string;
+  dotColor?: string;
+  badgeClass?: string;
 }
 
 export interface ParseResult {
@@ -14,7 +15,8 @@ export interface ParseResult {
 export interface PlatformParser {
   id: string;
   name: string;
-  badgeClass: string;
+  dotColor?: string;
+  badgeClass?: string;
   detect: (rawText: string, sampleRecords: any[]) => boolean;
   parse: (rawText: string) => ParseResult;
 }

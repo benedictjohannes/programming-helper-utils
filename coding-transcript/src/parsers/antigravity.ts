@@ -4,7 +4,7 @@ import type { PlatformParser, ParseResult } from './types';
 export const antigravityParser: PlatformParser = {
   id: 'antigravity',
   name: 'Antigravity',
-  badgeClass: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+  dotColor: 'bg-blue-500',
   detect(rawText: string, sampleRecords: any[]): boolean {
     if (!sampleRecords || sampleRecords.length === 0) return false;
     for (const rec of sampleRecords) {
@@ -32,7 +32,7 @@ export const antigravityParser: PlatformParser = {
       platform: {
         id: antigravityParser.id,
         name: antigravityParser.name,
-        badgeClass: antigravityParser.badgeClass,
+        dotColor: antigravityParser.dotColor,
       },
       timeline,
       recordCount: records.length,

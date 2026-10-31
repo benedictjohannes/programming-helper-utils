@@ -4,7 +4,7 @@ import type { PlatformParser, ParseResult } from './types';
 export const openCodeParser: PlatformParser = {
   id: 'opencode',
   name: 'OpenCode',
-  badgeClass: 'bg-teal-500/10 text-teal-400 border border-teal-500/20',
+  dotColor: 'bg-emerald-500',
   detect(rawText: string, sampleRecords: any[]): boolean {
     if (!sampleRecords || sampleRecords.length === 0) return false;
     for (const rec of sampleRecords) {
@@ -180,7 +180,7 @@ export const openCodeParser: PlatformParser = {
       platform: {
         id: openCodeParser.id,
         name: openCodeParser.name,
-        badgeClass: openCodeParser.badgeClass,
+        dotColor: openCodeParser.dotColor,
       },
       timeline,
       recordCount: messages.length,

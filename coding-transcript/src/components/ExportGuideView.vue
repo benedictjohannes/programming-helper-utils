@@ -104,8 +104,9 @@
             <MessageSquare class="w-4 h-4 text-amber-400" />
             <span>Method 1: Ask the Assistant Directly (No Setup)</span>
           </div>
-          <span class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            Recommended
+          <span class="text-[11px] leading-none px-2 py-0.5 rounded-full bg-[var(--bg-header)] text-[var(--text-primary)] border border-[var(--border-color)] inline-flex items-center gap-1.5 shadow-xs">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 translate-y-[0.5px]"></span>
+            <span>Recommended</span>
           </span>
         </div>
 
@@ -137,8 +138,9 @@
             <FileCode class="w-4 h-4 text-purple-400" />
             <span>Method 2: Install as Skill / Workflow</span>
           </div>
-          <span class="text-[11px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
-            Power Users
+          <span class="text-[11px] leading-none px-2 py-0.5 rounded-full bg-[var(--bg-header)] text-[var(--text-primary)] border border-[var(--border-color)] inline-flex items-center gap-1.5 shadow-xs">
+            <span class="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 translate-y-[0.5px]"></span>
+            <span>Power Users</span>
           </span>
         </div>
 

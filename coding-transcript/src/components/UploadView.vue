@@ -20,7 +20,7 @@
       </div>
 
       <!-- Mode Selector Tabs & Platform selector -->
-      <div class="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-4 space-y-4">
+      <div class="w-full bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl p-4 space-y-4 shadow-xs dark:shadow-none">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pb-3 border-b border-[var(--border-color)]">
           <!-- Tab buttons -->
           <div class="flex p-1 space-x-1 bg-[var(--bg-primary)] rounded-lg border border-[var(--border-color)] w-full sm:w-auto">

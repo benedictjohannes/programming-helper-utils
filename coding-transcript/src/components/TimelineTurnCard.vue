@@ -1,6 +1,6 @@
 <template>
   <div
-    class="border border-[var(--border-color)] rounded-xl bg-[var(--bg-card)] overflow-hidden transition"
+    class="border border-[var(--border-color)] rounded-xl bg-[var(--bg-card)] shadow-xs dark:shadow-none overflow-hidden transition"
     :id="item.id"
   >
     <!-- Turn Header Bar -->

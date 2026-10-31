@@ -4,7 +4,7 @@ import type { PlatformParser, ParseResult } from './types';
 export const claudeCodeParser: PlatformParser = {
   id: 'claude_code',
   name: 'Claude Code (Experimental)',
-  badgeClass: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',
+  dotColor: 'bg-orange-500',
   detect(rawText: string, sampleRecords: any[]): boolean {
     if (!sampleRecords || sampleRecords.length === 0) return false;
     for (const rec of sampleRecords) {
@@ -113,7 +113,7 @@ export const claudeCodeParser: PlatformParser = {
       platform: {
         id: claudeCodeParser.id,
         name: claudeCodeParser.name,
-        badgeClass: claudeCodeParser.badgeClass,
+        dotColor: claudeCodeParser.dotColor,
       },
       timeline,
       recordCount: records.length,

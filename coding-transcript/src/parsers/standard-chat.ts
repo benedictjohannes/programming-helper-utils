@@ -4,7 +4,7 @@ import type { PlatformParser, ParseResult } from './types';
 export const standardChatParser: PlatformParser = {
   id: 'standard_chat',
   name: 'Standard Chat / OpenAI (Experimental)',
-  badgeClass: 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20',
+  dotColor: 'bg-zinc-400',
   detect(rawText: string, sampleRecords: any[]): boolean {
     if (!sampleRecords || sampleRecords.length === 0) return false;
     for (const rec of sampleRecords) {
@@ -89,7 +89,7 @@ export const standardChatParser: PlatformParser = {
       platform: {
         id: standardChatParser.id,
         name: standardChatParser.name,
-        badgeClass: standardChatParser.badgeClass,
+        dotColor: standardChatParser.dotColor,
       },
       timeline,
       recordCount: records.length,

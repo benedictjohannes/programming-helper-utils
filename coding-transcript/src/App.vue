@@ -9,12 +9,16 @@
           </div>
           <span class="font-bold text-xs tracking-tight hidden sm:inline">Transcript Viewer</span>
 
-          <!-- Platform badge -->
+          <!-- Platform badge: Vercel / Geist style pill with colored status dot -->
           <span
             v-if="currentPlatform"
-            class="px-2 py-0.5 rounded text-[11px] font-medium border border-[var(--border-color)] text-[var(--text-secondary)]"
+            class="px-2 py-0.5 rounded-full text-[11px] leading-none font-medium border border-[var(--border-color)] bg-[var(--bg-header)] text-[var(--text-primary)] inline-flex items-center gap-1.5 shadow-xs"
           >
-            {{ currentPlatform.name }}
+            <span
+              class="w-1.5 h-1.5 rounded-full shrink-0 translate-y-[0.5px]"
+              :class="currentPlatform.dotColor || 'bg-zinc-400'"
+            />
+            <span>{{ currentPlatform.name }}</span>
           </span>
 
           <span v-if="loadedFilename" class="text-xs font-mono text-[var(--text-muted)] truncate max-w-xs px-2 py-0.5 rounded border border-[var(--border-color)] hidden md:inline">
