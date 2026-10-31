@@ -59,9 +59,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { ChevronRight } from 'lucide-vue-next';
-import { parseXmlBlocks, type XmlBlock } from '../utils/xmlParser';
+import { parseXmlBlocks, isTagDefaultCollapsed, type XmlBlock } from '../utils/xmlParser';
 import { renderMarkdown } from '../utils/markdown';
 
 const props = withDefaults(
@@ -84,20 +84,21 @@ function registerNestedRef(el: any, idx: number) {
   }
 }
 
-// Initialize collapse state:
+function initBlockCollapse(block: XmlBlock) {
+  if (!block.isTag || collapsedMap.value[block.id] !== undefined) return;
+  collapsedMap.value[block.id] = isTagDefaultCollapsed(block.tagName, props.defaultCollapsed);
+}
+
+// Reactively initialize collapse state on mount and when content dynamically changes:
 // We collapse metadata/settings tags by default (e.g. ADDITIONAL_METADATA, USER_SETTINGS_CHANGE),
 // but keep USER_REQUEST expanded.
-blocks.value.forEach((b) => {
-  if (b.isTag) {
-    if (b.tagName === 'USER_REQUEST') {
-      collapsedMap.value[b.id] = false;
-    } else if (b.tagName === 'ADDITIONAL_METADATA' || b.tagName === 'USER_SETTINGS_CHANGE') {
-      collapsedMap.value[b.id] = true;
-    } else {
-      collapsedMap.value[b.id] = props.defaultCollapsed;
-    }
-  }
-});
+watch(
+  blocks,
+  (newBlocks) => {
+    newBlocks.forEach(initBlockCollapse);
+  },
+  { immediate: true }
+);
 
 function isCollapsed(id: string) {
   return collapsedMap.value[id] ?? false;

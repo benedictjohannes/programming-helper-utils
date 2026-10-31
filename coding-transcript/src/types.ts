@@ -20,6 +20,20 @@ export interface RawTranscriptRecord {
   }>;
 }
 
+export type FileOperationType = 'edit' | 'write';
+
+export interface FileOperationInfo {
+  type: FileOperationType;
+  path: string;
+  // For 'edit'
+  target?: string;
+  replacement?: string;
+  // For 'write'
+  content?: string;
+  // For unified / patch diff text
+  diffText?: string;
+}
+
 export interface ToolCallItem {
   id: string;
   name: string;
@@ -32,6 +46,7 @@ export interface ToolCallItem {
   stepIndexCall: number;
   stepIndexResult?: number;
   createdAt: string;
+  fileOperation?: FileOperationInfo;
 }
 
 export interface ModelInfo {

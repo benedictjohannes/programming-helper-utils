@@ -60,6 +60,7 @@ The application separates platform-specific schemas from the user interface usin
   - `summaryText`: Condensed one-line description for the collapsed header.
   - `outputContent`: Output or return stdout/stderr from the tool call.
   - `status`: Execution outcome status (`DONE`, `ERROR`, etc.).
+  - `fileOperation`: Normalized file mutation info (`FileOperationInfo`) for edit and write operations, including file path, target/replacement or unified diff text.
 
 ---
 
@@ -98,6 +99,7 @@ When a file is loaded with platform set to `auto`:
       - `UploadView.vue`: Initial landing view with tabs for drag-and-drop file upload vs raw text pasting, plus manual platform selector.
       - `ExportGuideView.vue`: In-app export instructions guide for verified platforms (OpenCode and Antigravity) with copyable prompts and skill templates.
       - `TimelineTurnCard.vue`: Renders an individual conversation turn card with collapsible header, token stats, and body routing.
+      - `ReasoningBubble.vue`: Collapsible reasoning/thinking block with markdown support, character count badge, and clipboard copy.
       - `XmlBubbleView.vue`: Parses and renders XML-like tags (e.g. `<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, `<SKILL>`) as collapsible blocks.
       - `ToolCallsList.vue`: Batched tool calls with side-by-side diff previews for file edits, terminal-style command bars, and expandable stdout.
       - `SearchBar.vue`: Sticky top search bar with match counter, keyboard navigation (`Enter` / `Shift+Enter`), and scope filters.
@@ -114,7 +116,14 @@ When a file is loaded with platform set to `auto`:
       - `markdown.ts`: Marked + Prism integration for GFM Markdown parsing and code block highlighting.
       - `search.ts`: Search engine scanning prompts, responses, tool inputs, and tool outputs with snippet extraction.
       - `xmlParser.ts`: Regex parser decomposing structured tag blocks from plain text.
-  - `package.json`: Project metadata and build scripts (`dev`, `build`, `preview`).
+  - `tests/`: Automated test suite executed via `bun test` using `@vue/test-utils` and `happy-dom`.
+    - `setup.ts`: Test environment preload script injecting Happy DOM globals and registering on-the-fly Vue SFC compilation plugin.
+    - `components/`: UI component interaction and mounting tests.
+    - `parsers/`: Invariant testing against real-world transcript fixtures.
+    - `utils/`: Unit tests for XML parsing and search indexer.
+    - `build.test.ts`: Standalone single-file Vite build verification.
+  - `bunfig.toml`: Bun configuration preloading `tests/setup.ts`.
+  - `package.json`: Project metadata and scripts (`dev`, `build`, `preview`, `test`, `typecheck`).
   - `vite.config.ts`: Vite configuration utilizing `@tailwindcss/vite` and `vite-plugin-singlefile`.
   - `tsconfig.json`: TypeScript configuration.
   - `index.html`: Vite HTML template with `#app` mount point.
@@ -138,7 +147,11 @@ When a file is loaded with platform set to `auto`:
 
 ## Verification & Testing
 
-Sample fixtures in `fixtures/` are used to verify parsing and rendering:
-- `audigma.antigravity.jsonl`: Verifies tool-result pairing, token summation, and XML bubble generation.
-- `audigma.opencode.json`: Verifies parsing of multi-part reasoning blocks, tool invocations, and text blocks.
-Formal automated test suites against these fixtures are planned for future iterations.
+The test suite runs with native Bun test (`bun test`), executing 119 unit and component tests across 12 test suites:
+- **Environment & Preload** (`tests/setup.ts`): Emulates browser DOM via `happy-dom` and compiles `.vue` SFCs on the fly using `@vue/compiler-sfc` via a custom Bun plugin.
+- **Parser & Invariant Tests** (`tests/parsers/`):
+  - `audigma.antigravity.jsonl`: Verifies tool-result pairing, token summation, XML bubble generation, and contiguous step indexing.
+  - `audigma.opencode.json`: Verifies parsing of multi-part reasoning blocks, tool invocations, and text blocks.
+  - Auto-detection: Positive detection, collision resistance, and graceful fallback on malformed input.
+- **Component Tests** (`tests/components/`): Verifies mounting, user interactions, search navigation with tool expansion, theme toggling, XML collapse reactivity, and `ReasoningBubble` states.
+- **Build Verification** (`tests/build.test.ts`): Validates that `vite build` produces a fully self-contained `dist/index.html` without external network scripts or styles.

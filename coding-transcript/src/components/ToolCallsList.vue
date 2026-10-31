@@ -45,15 +45,11 @@
       <!-- Tool Body -->
       <div v-show="isExpanded(tool.id)" class="p-3 space-y-3 bg-[var(--bg-primary)]">
         <!-- Thinking section if present on this specific tool call -->
-        <div v-if="tool.thinking">
-          <div class="text-[10px] uppercase font-semibold text-[var(--text-muted)] tracking-wider mb-1 flex items-center gap-1.5">
-            <BrainCircuit class="w-3 h-3 text-[var(--text-muted)]" />
-            <span>Reasoning / Thought</span>
-          </div>
-          <div class="p-2.5 bg-[var(--code-bg)] border border-[var(--border-color)] rounded-lg text-xs font-mono text-[var(--text-secondary)] whitespace-pre-wrap max-h-60 overflow-y-auto">
-            {{ tool.thinking }}
-          </div>
-        </div>
+        <ReasoningBubble
+          v-if="tool.thinking"
+          :content="tool.thinking"
+          :defaultExpanded="true"
+        />
 
         <!-- Input section -->
         <div>
@@ -68,8 +64,49 @@
             </button>
           </div>
 
-          <!-- Diff preview for edit_file -->
-          <div v-if="tool.name === 'edit_file' && tool.args.Target && tool.args.Replacement !== undefined" class="space-y-1.5">
+          <!-- 1. Normalized File Operation preview -->
+          <div v-if="tool.fileOperation" class="space-y-1.5">
+            <div class="text-xs text-[var(--text-secondary)] font-mono">
+              File: <span class="text-[var(--text-primary)] font-medium">{{ tool.fileOperation.path }}</span>
+            </div>
+
+            <!-- Side-by-side Target vs Replacement diff (edit) -->
+            <div
+              v-if="tool.fileOperation.type === 'edit' && tool.fileOperation.target !== undefined && tool.fileOperation.replacement !== undefined"
+              class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono"
+            >
+              <div class="border border-[var(--border-color)] rounded-md p-2 bg-[var(--bg-card)]">
+                <div class="text-[10px] uppercase font-bold text-red-500 mb-1">Target (Replaced)</div>
+                <pre class="overflow-x-auto text-[var(--text-primary)] whitespace-pre-wrap">{{ tool.fileOperation.target }}</pre>
+              </div>
+              <div class="border border-[var(--border-color)] rounded-md p-2 bg-[var(--bg-card)]">
+                <div class="text-[10px] uppercase font-bold text-emerald-500 mb-1">Replacement</div>
+                <pre class="overflow-x-auto text-[var(--text-primary)] whitespace-pre-wrap">{{ tool.fileOperation.replacement || '(Deleted)' }}</pre>
+              </div>
+            </div>
+
+            <!-- Unified patch / diff view (edit) -->
+            <div
+              v-else-if="tool.fileOperation.type === 'edit' && tool.fileOperation.diffText"
+              class="border border-[var(--border-color)] bg-[var(--code-bg)] rounded-md p-2.5 font-mono text-xs overflow-x-auto"
+            >
+              <pre class="whitespace-pre-wrap text-[var(--text-primary)]">{{ tool.fileOperation.diffText }}</pre>
+            </div>
+
+            <!-- Write File Content view (write) -->
+            <div
+              v-else-if="tool.fileOperation.type === 'write'"
+              class="border border-[var(--border-color)] bg-[var(--code-bg)] rounded-md overflow-hidden"
+            >
+              <div class="px-2.5 py-1 text-[10px] uppercase font-bold text-emerald-500 bg-[var(--bg-card)] border-b border-[var(--border-color)]">
+                Content Written
+              </div>
+              <pre class="p-2.5 text-xs font-mono text-[var(--text-primary)] overflow-x-auto max-h-72 whitespace-pre-wrap">{{ tool.fileOperation.content || '(Empty file)' }}</pre>
+            </div>
+          </div>
+
+          <!-- Fallback diff preview for unparsed edit_file args -->
+          <div v-else-if="tool.name === 'edit_file' && tool.args.Target && tool.args.Replacement !== undefined" class="space-y-1.5">
             <div class="text-xs text-[var(--text-secondary)] font-mono">File: <span class="text-[var(--text-primary)]">{{ tool.args.Path }}</span></div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs font-mono">
               <div class="border border-[var(--border-color)] rounded-md p-2 bg-[var(--bg-card)]">
@@ -126,6 +163,7 @@
 import { ref } from 'vue';
 import type { ToolCallItem } from '../types';
 import { highlightCode } from '../utils/markdown';
+import ReasoningBubble from './ReasoningBubble.vue';
 import {
   ChevronRight,
   Terminal,
@@ -134,7 +172,6 @@ import {
   FilePlus,
   Search,
   Cpu,
-  BrainCircuit,
   Copy
 } from 'lucide-vue-next';
 
@@ -165,30 +202,51 @@ function setAllExpanded(expand: boolean) {
   }
 }
 
+function setToolExpanded(id: string, expand: boolean = true) {
+  expandedMap.value[id] = expand;
+}
+
 defineExpose({
   tools: props.tools,
   expandedMap,
   setAllExpanded,
+  setToolExpanded,
 });
 
 function getToolIcon(name: string) {
   switch (name) {
     case 'run_command':
+    case 'shell':
+    case 'bash':
       return Terminal;
     case 'read_file':
+    case 'read':
       return FileCode;
     case 'edit_file':
+    case 'edit':
+    case 'patch':
       return FileEdit;
     case 'write_file':
+    case 'write':
       return FilePlus;
     case 'search_web':
+    case 'grep':
+    case 'glob':
       return Search;
     default:
       return Cpu;
   }
 }
 
-function copyText(str: string) {
-  navigator.clipboard.writeText(str);
+async function copyText(str: string) {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('Clipboard API unavailable');
+    }
+    await navigator.clipboard.writeText(str);
+  } catch (err) {
+    console.error('Copy failed: ', err);
+    alert('Copy failed, this is an irrecoverable error most likely caused by accessing through insecure http:// protocol');
+  }
 }
 </script>

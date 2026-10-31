@@ -8,6 +8,8 @@
     "@types/bun": "latest",
     "@types/prismjs": "^1.26.6",
     "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "happy-dom": "^21.0.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "vite": "^8.3.5",
@@ -24,6 +26,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "typecheck": "vue-tsc --noEmit"
   }
 }

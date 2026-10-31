@@ -76,6 +76,15 @@
         >
           Tool Output
         </button>
+        <button
+          @click="toggleFilter('systemMessage')"
+          :class="[
+            'px-2 py-1 rounded-md border transition cursor-pointer',
+            filters.systemMessage ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+          ]"
+        >
+          System
+        </button>
       </div>
     </div>
   </div>

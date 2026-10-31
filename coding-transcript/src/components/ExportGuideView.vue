@@ -196,6 +196,9 @@ const copiedSkill = ref(false);
 
 async function copyText(text: string, type: 'prompt' | 'skill') {
   try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('Clipboard API unavailable');
+    }
     await navigator.clipboard.writeText(text);
     if (type === 'prompt') {
       copiedPrompt.value = true;
@@ -206,6 +209,7 @@ async function copyText(text: string, type: 'prompt' | 'skill') {
     }
   } catch (err) {
     console.error('Failed to copy text: ', err);
+    alert('Copy failed, this is an irrecoverable error most likely caused by accessing through insecure http:// protocol');
   }
 }
 </script>

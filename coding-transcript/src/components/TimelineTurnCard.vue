@@ -124,18 +124,7 @@
       <!-- 2. MODEL RESPONSE -->
       <div v-else-if="item.type === 'model_response'">
         <!-- Thinking dropdown if present -->
-        <div v-if="item.thinking" class="mb-3">
-          <button
-            @click="showThinking = !showThinking"
-            class="px-2.5 py-1 rounded-md border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] text-xs font-medium flex items-center gap-1.5 transition cursor-pointer text-[var(--text-secondary)]"
-          >
-            <BrainCircuit class="w-3.5 h-3.5 text-[var(--text-muted)]" />
-            <span>{{ showThinking ? 'Hide Thinking' : 'Show Thinking' }}</span>
-          </button>
-          <div v-if="showThinking" class="mt-2 p-2.5 bg-[var(--code-bg)] border border-[var(--border-color)] rounded-lg text-xs font-mono text-[var(--text-secondary)] whitespace-pre-wrap max-h-72 overflow-y-auto">
-            {{ item.thinking }}
-          </div>
-        </div>
+        <ReasoningBubble v-if="item.thinking" :content="item.thinking" class="mb-3" />
 
         <XmlBubbleView ref="xmlBubbleRef" v-if="hasXmlTags(item.content || '')" :content="item.content || ''" />
         <div v-else class="markdown-body" v-html="renderMarkdown(item.content || '')"></div>
@@ -144,18 +133,7 @@
       <!-- 3. TOOL CALLS -->
       <div v-else-if="item.type === 'tool_call' && item.tools">
         <!-- Thinking dropdown if present on tool calls -->
-        <div v-if="item.thinking" class="mb-3">
-          <button
-            @click="showThinking = !showThinking"
-            class="px-2.5 py-1 rounded-md border border-[var(--border-color)] bg-[var(--bg-card)] hover:bg-[var(--bg-hover)] text-xs font-medium flex items-center gap-1.5 transition cursor-pointer text-[var(--text-secondary)]"
-          >
-            <BrainCircuit class="w-3.5 h-3.5 text-[var(--text-muted)]" />
-            <span>{{ showThinking ? 'Hide Thinking' : 'Show Thinking' }}</span>
-          </button>
-          <div v-if="showThinking" class="mt-2 p-2.5 bg-[var(--code-bg)] border border-[var(--border-color)] rounded-lg text-xs font-mono text-[var(--text-secondary)] whitespace-pre-wrap max-h-72 overflow-y-auto">
-            {{ item.thinking }}
-          </div>
-        </div>
+        <ReasoningBubble v-if="item.thinking" :content="item.thinking" class="mb-3" />
 
         <!-- Tool Call group header / toggle -->
         <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--border-color)]">
@@ -184,9 +162,7 @@
       <!-- 4. SYSTEM MESSAGE -->
       <div v-else-if="item.type === 'system_message'">
         <XmlBubbleView ref="xmlBubbleRef" v-if="hasXmlTags(item.content || '')" :content="item.content || ''" />
-        <div v-else class="font-mono text-xs text-[var(--text-secondary)] whitespace-pre-wrap bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg p-2.5">
-          {{ item.content }}
-        </div>
+        <div v-else class="markdown-body" v-html="renderMarkdown(item.content || '')"></div>
       </div>
     </div>
   </div>
@@ -198,12 +174,12 @@ import type { TimelineItem, ModelInfo } from '../types';
 import { renderMarkdown, formatDateTime, formatNumber } from '../utils/markdown';
 import ToolCallsList from './ToolCallsList.vue';
 import XmlBubbleView from './XmlBubbleView.vue';
+import ReasoningBubble from './ReasoningBubble.vue';
 import {
   User,
   Bot,
   Wrench,
   AlertCircle,
-  BrainCircuit,
   ChevronRight
 } from 'lucide-vue-next';
 
@@ -212,7 +188,6 @@ const props = defineProps<{
 }>();
 
 const isTurnCollapsed = ref(false);
-const showThinking = ref(false);
 const toolListRef = ref<any>(null);
 const xmlBubbleRef = ref<any>(null);
 
@@ -237,10 +212,17 @@ function setTurnCollapsed(val: boolean) {
   }
 }
 
+function expandTool(toolId: string) {
+  if (toolListRef.value?.setToolExpanded) {
+    toolListRef.value.setToolExpanded(toolId, true);
+  }
+}
+
 defineExpose({
   item: props.item,
   isTurnCollapsed,
   setTurnCollapsed,
+  expandTool,
 });
 
 function getRoleIcon(item: TimelineItem) {

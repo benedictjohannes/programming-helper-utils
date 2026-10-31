@@ -1,4 +1,4 @@
-import type { TimelineItem, ToolCallItem, ModelInfo } from '../types';
+import type { TimelineItem, ToolCallItem, ModelInfo, FileOperationInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const openCodeParser: PlatformParser = {
@@ -124,6 +124,31 @@ export const openCodeParser: PlatformParser = {
             const status = t.state?.status || 'DONE';
             const error = t.state?.metadata?.error || (status === 'error' ? 'Tool call failed' : undefined);
 
+            let fileOperation: FileOperationInfo | undefined;
+            if ((toolName === 'patch' || toolName === 'edit') && inputArgs) {
+              const patchText = inputArgs.patchText || '';
+              const matchPath = patchText.match(/\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+([^\n]+)/i);
+              const path = inputArgs.path || matchPath?.[1] || '';
+              fileOperation = {
+                type: 'edit',
+                path,
+                diffText: patchText || undefined,
+                target: inputArgs.old_string || inputArgs.target || undefined,
+                replacement: inputArgs.new_string || inputArgs.replacement || undefined,
+              };
+            } else if ((toolName === 'write' || toolName === 'write_file') && inputArgs) {
+              fileOperation = {
+                type: 'write',
+                path: inputArgs.path || inputArgs.Path || '',
+                content:
+                  inputArgs.content !== undefined
+                    ? String(inputArgs.content)
+                    : inputArgs.text !== undefined
+                    ? String(inputArgs.text)
+                    : '',
+              };
+            }
+
             return {
               id: t.id || `tool-${step}-${idx}`,
               name: toolName,
@@ -135,6 +160,7 @@ export const openCodeParser: PlatformParser = {
               thinking: thinking || undefined,
               stepIndexCall: step,
               createdAt: formatTimestamp(t.time?.created) || createdAt,
+              fileOperation,
             };
           });
 

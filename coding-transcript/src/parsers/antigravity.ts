@@ -1,4 +1,4 @@
-import type { RawTranscriptRecord, TimelineItem, ToolCallItem, ModelInfo } from '../types';
+import type { RawTranscriptRecord, TimelineItem, ToolCallItem, ModelInfo, FileOperationInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const antigravityParser: PlatformParser = {
@@ -85,6 +85,7 @@ function parseModelFromContent(content?: string): ModelInfo | undefined {
 function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[] {
   const timeline: TimelineItem[] = [];
   let currentModelInfo: ModelInfo | undefined;
+  let step = 0;
   let i = 0;
 
   while (i < records.length) {
@@ -103,9 +104,9 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
     // Case 1: USER_INPUT
     if (rec.source === 'USER_EXPLICIT' && rec.type === 'USER_INPUT') {
       timeline.push({
-        id: `turn-user-${rec.step_index}`,
+        id: `turn-user-${step}`,
         type: 'user_input',
-        stepIndex: rec.step_index,
+        stepIndex: step++,
         createdAt: rec.created_at,
         status: rec.status,
         content: rec.content || '',
@@ -118,9 +119,9 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
     // Case 2: SYSTEM_MESSAGE
     if (rec.type === 'SYSTEM_MESSAGE' || rec.source === 'SYSTEM') {
       timeline.push({
-        id: `system-${rec.step_index}`,
+        id: `system-${step}`,
         type: 'system_message',
-        stepIndex: rec.step_index,
+        stepIndex: step++,
         createdAt: rec.created_at,
         status: rec.status,
         content: rec.content || '',
@@ -132,7 +133,7 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
     // Case 3: MODEL PLANNER_RESPONSE with tool_calls
     if (rec.source === 'MODEL' && rec.type === 'PLANNER_RESPONSE' && rec.tool_calls && rec.tool_calls.length > 0) {
       const tools: ToolCallItem[] = [];
-      const startStep = rec.step_index;
+      const currentStep = step++;
       const createdAt = rec.created_at;
       let totalInputTokens = 0;
       let totalOutputTokens = 0;
@@ -176,6 +177,22 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
             i++; // consume result record
           }
 
+          let fileOperation: FileOperationInfo | undefined;
+          if (tc.name === 'edit_file' && tc.args) {
+            fileOperation = {
+              type: 'edit',
+              path: tc.args.Path || '',
+              target: tc.args.Target !== undefined ? String(tc.args.Target) : undefined,
+              replacement: tc.args.Replacement !== undefined ? String(tc.args.Replacement) : '',
+            };
+          } else if (tc.name === 'write_file' && tc.args) {
+            fileOperation = {
+              type: 'write',
+              path: tc.args.Path || '',
+              content: tc.args.Content !== undefined ? String(tc.args.Content) : '',
+            };
+          }
+
           tools.push({
             id: toolId,
             name: tc.name,
@@ -185,18 +202,19 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
             status: toolStatus,
             error,
             thinking: toolCallRec.thinking?.trim() || undefined,
-            stepIndexCall: toolCallRec.step_index,
+            stepIndexCall: currentStep,
             stepIndexResult: resultStepIndex,
             createdAt: toolCallRec.created_at,
+            fileOperation,
           });
         }
         i++;
       }
 
       timeline.push({
-        id: `tools-${startStep}`,
+        id: `tools-${currentStep}`,
         type: 'tool_call',
-        stepIndex: startStep,
+        stepIndex: currentStep,
         createdAt,
         tools,
         thinking: thinkingParts.length > 0 ? thinkingParts.join('\n\n') : undefined,
@@ -213,9 +231,9 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
     // Case 4: MODEL PLANNER_RESPONSE with text response
     if (rec.source === 'MODEL' && (rec.type === 'PLANNER_RESPONSE' || rec.type === 'GENERIC')) {
       timeline.push({
-        id: `turn-model-${rec.step_index}`,
+        id: `turn-model-${step}`,
         type: 'model_response',
-        stepIndex: rec.step_index,
+        stepIndex: step++,
         createdAt: rec.created_at,
         status: rec.status,
         content: rec.content || '',
@@ -233,9 +251,9 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
 
     // Fallback
     timeline.push({
-      id: `record-${rec.step_index}`,
+      id: `record-${step}`,
       type: 'system_message',
-      stepIndex: rec.step_index,
+      stepIndex: step++,
       createdAt: rec.created_at,
       status: rec.status,
       content: rec.content || JSON.stringify(rec, null, 2),

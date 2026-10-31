@@ -7,6 +7,31 @@ export interface XmlBlock {
   isTag: boolean;
 }
 
+export const DEFAULT_COLLAPSED_TAGS = new Set([
+  'ADDITIONAL_METADATA',
+  'USER_SETTINGS_CHANGE',
+]);
+
+export const DEFAULT_EXPANDED_TAGS = new Set([
+  'USER_REQUEST',
+]);
+
+/**
+ * Determines whether an XML tag block should be collapsed by default.
+ * Respects explicit expanded/collapsed tag definitions (case-insensitively),
+ * and falls back to the provided fallback value for any other tag.
+ */
+export function isTagDefaultCollapsed(tagName: string, fallback = false): boolean {
+  const normalized = tagName.toUpperCase();
+  if (DEFAULT_EXPANDED_TAGS.has(normalized)) {
+    return false;
+  }
+  if (DEFAULT_COLLAPSED_TAGS.has(normalized)) {
+    return true;
+  }
+  return fallback;
+}
+
 export function parseXmlBlocks(text: string): XmlBlock[] {
   if (!text) return [];
 

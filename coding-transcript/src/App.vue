@@ -235,8 +235,14 @@ function scrollToMatch(index: number) {
   nextTick(() => {
     // If target turn is collapsed, expand it
     const targetTurn = cardRefs.value.find((c: any) => c?.item?.id === match.itemId);
-    if (targetTurn && targetTurn.isTurnCollapsed) {
-      targetTurn.setTurnCollapsed(false);
+    if (targetTurn) {
+      if (targetTurn.isTurnCollapsed) {
+        targetTurn.setTurnCollapsed(false);
+      }
+      // If match is inside a specific tool call, ensure that tool call item is expanded
+      if (match.subId && targetTurn.expandTool) {
+        targetTurn.expandTool(match.subId);
+      }
     }
 
     const targetElement = document.getElementById(match.subId || match.itemId);
