@@ -1,4 +1,4 @@
-import type { RawTranscriptRecord, TimelineItem, ToolExecutionItem, ModelInfo } from '../types';
+import type { RawTranscriptRecord, TimelineItem, ToolCallItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const antigravityParser: PlatformParser = {
@@ -124,7 +124,7 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
 
     // Case 3: MODEL PLANNER_RESPONSE with tool_calls
     if (rec.source === 'MODEL' && rec.type === 'PLANNER_RESPONSE' && rec.tool_calls && rec.tool_calls.length > 0) {
-      const tools: ToolExecutionItem[] = [];
+      const tools: ToolCallItem[] = [];
       const startStep = rec.step_index;
       const createdAt = rec.created_at;
       let totalInputTokens = 0;
@@ -184,7 +184,7 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
 
       timeline.push({
         id: `tools-${startStep}`,
-        type: 'tool_executions',
+        type: 'tool_call',
         stepIndex: startStep,
         createdAt,
         tools,

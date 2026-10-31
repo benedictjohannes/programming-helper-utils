@@ -1,4 +1,4 @@
-import type { TimelineItem, ToolExecutionItem, ModelInfo } from '../types';
+import type { TimelineItem, ToolCallItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const claudeCodeParser: PlatformParser = {
@@ -77,7 +77,7 @@ export const claudeCodeParser: PlatformParser = {
           const toolUseBlocks = msg.content.filter((b: any) => b.type === 'tool_use');
 
           if (toolUseBlocks.length > 0) {
-            const tools: ToolExecutionItem[] = toolUseBlocks.map((tu: any, idx: number) => ({
+            const tools: ToolCallItem[] = toolUseBlocks.map((tu: any, idx: number) => ({
               id: tu.id || `tool-${step}-${idx}`,
               name: tu.name,
               args: tu.input || {},
@@ -89,7 +89,7 @@ export const claudeCodeParser: PlatformParser = {
 
             timeline.push({
               id: `claude-tools-${step}`,
-              type: 'tool_executions',
+              type: 'tool_call',
               stepIndex: step++,
               createdAt,
               tools,

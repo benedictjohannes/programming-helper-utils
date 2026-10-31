@@ -46,7 +46,7 @@ export function searchTimeline(
           matchIndex: matchIndex++,
         });
       }
-    } else if (item.type === 'tool_executions' && (filters.toolInput || filters.toolOutput)) {
+    } else if (item.type === 'tool_call' && (filters.toolInput || filters.toolOutput)) {
       if (item.tools) {
         for (const tool of item.tools) {
           // Check tool input args

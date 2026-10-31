@@ -124,7 +124,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { ToolExecutionItem } from '../types';
+import type { ToolCallItem } from '../types';
 import { highlightCode } from '../utils/markdown';
 import {
   ChevronRight,
@@ -139,7 +139,7 @@ import {
 } from 'lucide-vue-next';
 
 const props = defineProps<{
-  tools: ToolExecutionItem[];
+  tools: ToolCallItem[];
 }>();
 
 const expandedMap = ref<Record<string, boolean>>({});

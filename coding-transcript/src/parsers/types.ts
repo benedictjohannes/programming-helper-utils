@@ -7,7 +7,7 @@ export interface PlatformInfo {
 
 export interface ParseResult {
   platform: PlatformInfo;
-  timeline: import('./types').TimelineItem[];
+  timeline: import('../types').TimelineItem[];
   recordCount: number;
   totalTokens: number;
 }

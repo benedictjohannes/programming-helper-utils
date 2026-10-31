@@ -23,7 +23,7 @@ Transcripts are valuable records to review with team members for prompt refineme
   - Automatic platform detection with manual override option.
 - **Recursive Collapsibility**:
   - Collapse or expand entire conversation turns.
-  - Deep collapse down through XML tag bubbles (`<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, etc.) and individual tool executions.
+  - Deep collapse down through XML tag bubbles (`<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, etc.) and individual tool calls.
   - Global "Collapse all / Expand all" controls in the top bar.
 - **Code & Diff Visualization**:
   - Side-by-side Target vs. Replacement diffs for file edits.

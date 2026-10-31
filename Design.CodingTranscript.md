@@ -45,20 +45,20 @@ The application separates platform-specific schemas from the user interface usin
 
 - `TimelineItem`: Represents a conversational turn or event:
   - `id`: Unique identifier for DOM anchors and search targeting.
-  - `type`: `'user_input' | 'tool_executions' | 'model_response' | 'system_message'`.
+  - `type`: `'user_input' | 'tool_call' | 'model_response' | 'system_message'`.
   - `stepIndex`: Sequential turn or step index.
   - `createdAt`: ISO 8601 timestamp string.
   - `content`: Primary Markdown or text body.
   - `thinking`: Model reasoning/thinking text (when available).
   - `media`: Array of attached media (`{ mime_type, uri }`).
-  - `tools`: Array of `ToolExecutionItem` records.
+  - `tools`: Array of `ToolCallItem` records.
   - `tokens`: Turn token metrics (`input`, `output`, `cacheRead`).
   - `modelInfo`: Optional turn model details (`{ model, variant?, provider? }`).
-- `ToolExecutionItem`:
+- `ToolCallItem`:
   - `name`: Tool identifier (e.g. `run_command`, `read_file`, `edit_file`).
   - `args`: Arguments object passed to the tool.
   - `summaryText`: Condensed one-line description for the collapsed header.
-  - `outputContent`: Output or return stdout/stderr from the tool execution.
+  - `outputContent`: Output or return stdout/stderr from the tool call.
   - `status`: Execution outcome status (`DONE`, `ERROR`, etc.).
 
 ---
@@ -92,14 +92,14 @@ When a file is loaded with platform set to `auto`:
   - `src/`: Source code.
     - `main.ts`: Application entry point; mounts Vue and imports CSS.
     - `style.css`: Theme CSS custom properties (`--bg-primary`, `--border-color`, etc.), Prism syntax styling, and Markdown prose rules.
-    - `types.ts`: Core data models (`TimelineItem`, `ToolExecutionItem`, `SearchMatch`).
+    - `types.ts`: Core data models (`TimelineItem`, `ToolCallItem`, `SearchMatch`).
     - `App.vue`: Main layout container; manages active transcript, theme switching, global expand/collapse orchestration, and search coordination.
     - `components/`: UI components.
       - `UploadView.vue`: Initial landing view with tabs for drag-and-drop file upload vs raw text pasting, plus manual platform selector.
       - `ExportGuideView.vue`: In-app export instructions guide for verified platforms (OpenCode and Antigravity) with copyable prompts and skill templates.
       - `TimelineTurnCard.vue`: Renders an individual conversation turn card with collapsible header, token stats, and body routing.
       - `XmlBubbleView.vue`: Parses and renders XML-like tags (e.g. `<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, `<SKILL>`) as collapsible blocks.
-      - `ToolCallsList.vue`: Batched tool executions with side-by-side diff previews for file edits, terminal-style command bars, and expandable stdout.
+      - `ToolCallsList.vue`: Batched tool calls with side-by-side diff previews for file edits, terminal-style command bars, and expandable stdout.
       - `SearchBar.vue`: Sticky top search bar with match counter, keyboard navigation (`Enter` / `Shift+Enter`), and scope filters.
     - `assets/`: Static asset templates and text documents.
       - `antigravity-export-skill.md`: Raw Markdown template for Antigravity's custom export-transcript skill.

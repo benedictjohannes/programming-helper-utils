@@ -20,7 +20,7 @@ export interface RawTranscriptRecord {
   }>;
 }
 
-export interface ToolExecutionItem {
+export interface ToolCallItem {
   id: string;
   name: string;
   args: Record<string, any>;
@@ -40,9 +40,9 @@ export interface ModelInfo {
   provider?: string;
 }
 
-export type TimelineItemType = 
+export type TimelineItemType =
   | 'user_input'
-  | 'tool_executions'
+  | 'tool_call'
   | 'model_response'
   | 'system_message';
 
@@ -56,8 +56,8 @@ export interface TimelineItem {
   content?: string;
   thinking?: string;
   media?: Array<{ mime_type: string; uri: string }>;
-  // For tool_executions
-  tools?: ToolExecutionItem[];
+  // For tool_call
+  tools?: ToolCallItem[];
   // Tokens info
   tokens?: {
     input?: number;

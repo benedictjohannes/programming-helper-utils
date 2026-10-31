@@ -1,4 +1,4 @@
-import type { TimelineItem, ToolExecutionItem, ModelInfo } from '../types';
+import type { TimelineItem, ToolCallItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const openCodeParser: PlatformParser = {
@@ -116,13 +116,13 @@ export const openCodeParser: PlatformParser = {
         // Check for tools
         const toolItems = contentItems.filter((c) => c.type === 'tool');
         if (toolItems.length > 0) {
-          const tools: ToolExecutionItem[] = toolItems.map((t, idx) => {
+          const tools: ToolCallItem[] = toolItems.map((t, idx) => {
             const toolName = t.name || 'tool';
             const inputArgs = t.state?.input || {};
             const summary = getToolSummary(toolName, inputArgs);
             const outputText = extractToolOutput(t.state?.content);
             const status = t.state?.status || 'DONE';
-            const error = t.state?.metadata?.error || (status === 'error' ? 'Tool execution failed' : undefined);
+            const error = t.state?.metadata?.error || (status === 'error' ? 'Tool call failed' : undefined);
 
             return {
               id: t.id || `tool-${step}-${idx}`,
@@ -148,7 +148,7 @@ export const openCodeParser: PlatformParser = {
 
           timeline.push({
             id: `opencode-tools-${msg.id || step}`,
-            type: 'tool_executions',
+            type: 'tool_call',
             stepIndex: step++,
             createdAt,
             tools,

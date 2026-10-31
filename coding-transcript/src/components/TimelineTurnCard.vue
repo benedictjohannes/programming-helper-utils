@@ -106,7 +106,7 @@
       <!-- 1. USER INPUT -->
       <div v-if="item.type === 'user_input'">
         <XmlBubbleView ref="xmlBubbleRef" :content="item.content || ''" />
-        
+
         <div v-if="item.media && item.media.length > 0" class="mt-3 pt-2 border-t border-[var(--border-color)] space-y-1.5">
           <div class="text-[11px] font-semibold text-[var(--text-muted)] uppercase">Attached Media</div>
           <div class="flex flex-wrap gap-2">
@@ -141,9 +141,9 @@
         <div v-else class="markdown-body" v-html="renderMarkdown(item.content || '')"></div>
       </div>
 
-      <!-- 3. TOOL EXECUTIONS -->
-      <div v-else-if="item.type === 'tool_executions' && item.tools">
-        <!-- Thinking dropdown if present on tool executions -->
+      <!-- 3. TOOL CALLS -->
+      <div v-else-if="item.type === 'tool_call' && item.tools">
+        <!-- Thinking dropdown if present on tool calls -->
         <div v-if="item.thinking" class="mb-3">
           <button
             @click="showThinking = !showThinking"
@@ -157,7 +157,7 @@
           </div>
         </div>
 
-        <!-- Tool activity group header / toggle -->
+        <!-- Tool Call group header / toggle -->
         <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--border-color)]">
           <div class="text-xs text-[var(--text-muted)] font-medium">
             {{ item.tools.length }} {{ item.tools.length === 1 ? 'tool call' : 'tool calls' }}
@@ -249,7 +249,7 @@ function getRoleIcon(item: TimelineItem) {
       return User;
     case 'model_response':
       return Bot;
-    case 'tool_executions':
+    case 'tool_call':
       return Wrench;
     case 'system_message':
       return AlertCircle;
@@ -264,8 +264,8 @@ function getRoleTitle(item: TimelineItem) {
       return 'User';
     case 'model_response':
       return 'Assistant';
-    case 'tool_executions':
-      return 'Tool Activity';
+    case 'tool_call':
+      return 'Tool Calls';
     case 'system_message':
       return 'System';
     default:
