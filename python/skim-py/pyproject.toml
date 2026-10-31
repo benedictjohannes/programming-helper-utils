@@ -12,7 +12,9 @@ authors = [
     { name = "Benedict Johannes" }
 ]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "parso>=0.8.7",
+]
 keywords = ["ast", "code-intelligence", "ai-agents", "developer-tools", "outline", "extractor"]
 classifiers = [
     "Development Status :: 4 - Beta",

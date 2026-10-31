@@ -83,19 +83,43 @@ Build a fast, dependency-free Python AST-based outline and verbatim code block e
 Target repository: `testingRepositories/pydantic` (clone `pydantic/pydantic`):
 ```bash
 # Outline test:
-skim-py glance pydantic/main.py -s -u
-skim-py glance pydantic/ -s -f "BaseModel"
+skim-py glance testingRepositories/pydantic/pydantic/main.py -s -u
+skim-py glance testingRepositories/pydantic/pydantic/ -s -f "BaseModel"
 
 # Block extraction:
-skim-py block pydantic/main.py BaseModel.model_dump
-skim-py block pydantic/main.py BaseModel.__init__
-skim-py block pydantic/main.py BaseModel -d
-skim-py block pydantic/main.py BaseModel.model_dump --raw
+skim-py block testingRepositories/pydantic/pydantic/main.py BaseModel.model_dump
+skim-py block testingRepositories/pydantic/pydantic/main.py BaseModel.__init__
+skim-py block testingRepositories/pydantic/pydantic/main.py BaseModel -d
+skim-py block testingRepositories/pydantic/pydantic/main.py BaseModel.model_dump --raw
 
 # Test exclusion check:
-skim-py glance tests/ -s  # (omitted by default unless -t is passed)
-skim-py glance tests/ -s -t
+skim-py glance testingRepositories/pydantic/tests/ -s  # (omitted by default unless -t is passed)
+skim-py glance testingRepositories/pydantic/tests/ -s -t
 ```
+
+### Step 1b: In-Flight Syntax Mutation Smoke Test (Interactive Verification)
+Target file: `testingRepositories/pydantic/pydantic/main.py` (defines `class BaseModel`, ~1,900 lines).
+
+1. **Baseline check (Fast Path - `ast.parse`)**:
+   ```bash
+   skim-py glance testingRepositories/pydantic/pydantic/main.py -s -f "model_dump"
+   ```
+2. **Inject deliberate in-flight syntax errors**:
+   - Mutation A (broken method header): `def model_dump(self, *mode = ` (unclosed paren/param)
+   - Mutation B (unclosed multi-line bracket inside `BaseModel` body)
+   - Mutation C (broken class header): `class BaseModel(` (unclosed base)
+3. **Verify Error Recovery (Fallback Path - `parso`)**:
+   ```bash
+   # Outlines surviving methods and BaseModel, emitting the syntax notice at the top:
+   skim-py glance testingRepositories/pydantic/pydantic/main.py -s -f "BaseModel"
+
+   # Extracts surviving methods without crashing:
+   skim-py block testingRepositories/pydantic/pydantic/main.py BaseModel.model_validate
+   ```
+4. **Restore clean state**:
+   ```bash
+   git -C testingRepositories/pydantic checkout pydantic/main.py
+   ```
 
 ### Step 2: In-Tree Fixtures & Automated Unit Tests
 Create a `tests/fixtures/` directory inside `python/skim-py/`:
@@ -104,3 +128,44 @@ Create a `tests/fixtures/` directory inside `python/skim-py/`:
 - `fixtures/tests.py`: Mixed `unittest.TestCase` / `def test_*` functions with regular functions.
 - `fixtures/advanced_typing.py`: Generics, PEP 695 `type`, dataclasses, and Enums with `-d`.
 - Automate assertions via standard `python3 -m unittest`.
+
+## 6. Architecture Evolution: Hybrid Parser (`ast` + `parso`)
+
+### Motivation
+The other utilities in the `skim-*` family use tolerant AST/CST parsers (`ra_ap_syntax` for Rust, `typescript` compiler API for TS, `go/parser` for Go). 
+In Python, the initial implementation used standard library `ast.parse()` combined with a heuristic fallback for syntax errors (regex header salvage, indentation guessing, upward decorator scanning, and iterative string masking). 
+
+While this had zero runtime dependencies, heuristic string masking does not scale to multi-line brackets or nested syntax errors. Since `skim-python` is distributed via standard package managers (`uv`, `pipx`, `pip`), adding `parso` as a runtime dependency avoids fragile heuristics while keeping installation simple (pure Python wheel).
+
+### Architecture: Hybrid Pipeline
+
+1. **Primary Pass (Fast Path — CPython `ast`)**:
+   - Parse using standard library `ast.parse(content, filename=file_path, type_comments=True)`.
+   - CPython's C-implemented parser is significantly faster than pure-Python CST parsers, keeping recursive repository walks (`glance <dir>`) fast on valid files.
+   - `parso` is imported lazily inside `except SyntaxError:`. Because `parso` takes ~25–30ms to import versus ~1ms for `ast`, lazy loading avoids adding import latency to normal CLI runs on valid code.
+
+2. **Fallback Pass (Error Recovery — `parso`)**:
+   - When `ast.parse` raises `SyntaxError`, capture CPython's specific error message and line number for the primary syntax notice (e.g. `'(' was never closed`).
+   - Parse the unmutated content using `parso.parse(content)`.
+   - Traverse the resulting CST to extract surviving top-level and class-level functions and classes.
+   - Use `parso`'s error node/leaf locations to record additional syntax notices without regex or line masking.
+
+3. **CST Mapping Details**:
+   - **Decorators**: In `parso`, decorators wrap the function or class in a `decorated` node rather than attaching directly to the `Function` or `Class` node.
+   - **Line Boundaries**: `parso`'s `end_pos` is a `(line, col)` tuple that includes trailing newlines (frequently landing on `(N+1, 0)`). Normalize end lines by checking trailing tokens.
+   - **Grammar Version**: Pass the target Python grammar version explicitly to avoid defaulting to an older runtime environment when run under older interpreters.
+
+### Migration Tasks
+1. **Dependencies (`pyproject.toml`)** [COMPLETED]:
+   - Added `parso >= 0.8.4` to `dependencies` in `python/skim-py/pyproject.toml`.
+2. **Refactor `python/skim-py/src/skim_py/parser.py`** [COMPLETED]:
+   - Retained the `ast.AST` extraction visitor for valid files (fast path).
+   - Removed line-masking loops, `get_block_end`, bracket-balancing, and `__skim_masked__` stubs.
+   - Implemented `_parse_fallback_parso(file_path, content, ...)` with lazy `import parso`.
+   - Normalized `decorated` node spans, multi-line decorator formatting, and `(line, col)` boundaries to `OutlineItem`.
+   - Preserved syntax error messages from CPython combined with parso CST error localization.
+3. **Tests & Fixtures** [COMPLETED]:
+   - Verified existing fixtures (`syntax_error.py`, `syntax_error_cascade.py`).
+   - Added fixtures for multi-line unclosed brackets (`unclosed_bracket.py`) and PEP 695 syntax under syntax errors (`pep695_syntax_error.py`).
+   - Verified smoke tests and in-flight syntax mutations against `testingRepositories/pydantic/pydantic/main.py` (Mutations A, B, and C).
+   - All 34 automated unit tests pass.

@@ -13,78 +13,10 @@ TEST_DIR_NAMES = {"tests", "test", "testing", "__tests__"}
 TEST_FILE_PATTERN = re.compile(r"^(test_.*|.*_test|conftest)\.py$", re.IGNORECASE)
 TEST_CLASS_PATTERN = re.compile(r"^Test[A-Z0-9_].*")
 TEST_FUNC_PATTERN = re.compile(r"^test(_|[A-Z0-9_]).*")
-HEADER_DEF_PATTERN = re.compile(r"^\s*(async\s+def|def|class)\s+([a-zA-Z_][a-zA-Z0-9_]*)")
-
-
-def get_indent(line: str) -> int:
-    """Return indentation level expanding tabs to 8 spaces (CPython rule)."""
-    expanded = line.expandtabs(8)
-    return len(expanded) - len(expanded.lstrip(" "))
-
-
-def get_block_end(lines: List[str], start: int) -> int:
-    """Find the last indented code line, ignoring blank lines and comments.
-
-    Known limit: a multi-line string with content at column 0, or a closing
-    ``):`` at the header's indent, ends the block early.
-    """
-    indent = get_indent(lines[start])
-    end = start
-    for idx in range(start + 1, len(lines)):
-        stripped = lines[idx].strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        if get_indent(lines[idx]) <= indent:
-            break
-        end = idx
-    return end
-
-
-def collect_decorators(lines: List[str], header_idx: int, floor: int):
-    """Scan upward from a header for decorators, including multi-line ones.
-
-    Returns (start_idx or None, decorator strings in source order). Multi-line
-    decorators are found by bracket balancing; brackets inside strings are not
-    handled specially, so an unbalanced one can hide the decorator.
-    """
-    start: Optional[int] = None
-    decos: List[str] = []
-    idx = header_idx - 1
-    while idx >= floor:
-        s = lines[idx].strip()
-        if not s or s.startswith("#"):
-            idx -= 1
-            continue
-        if s.startswith("@"):
-            decos.insert(0, s)
-            start = idx
-            idx -= 1
-            continue
-        if s[-1] in ")]}":
-            depth = 0
-            found = None
-            for j in range(idx, floor - 1, -1):
-                t = lines[j].strip()
-                depth += sum(t.count(c) for c in ")]}") - sum(t.count(c) for c in "([{")
-                if depth <= 0:
-                    if t.startswith("@"):
-                        found = j
-                    break
-            if found is not None:
-                parts = [
-                    l.strip() for l in lines[found : idx + 1]
-                    if l.strip() and not l.strip().startswith("#")
-                ]
-                decos.insert(0, " ".join(parts))
-                start = found
-                idx = found - 1
-                continue
-        break
-    return start, decos
 
 
 def split_source_lines(content: str, keepends: bool = False) -> List[str]:
-    """Normalize newlines (\r\n, \r -> \n) and split into lines."""
+    """Normalize newlines (\\r\\n, \\r -> \\n) and split into lines."""
     norm = content.replace("\r\n", "\n").replace("\r", "\n")
     if not norm:
         return []
@@ -161,6 +93,550 @@ def is_test_func(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     return bool(TEST_FUNC_PATTERN.match(node.name))
 
 
+# ---------------------------------------------------------------------------
+# Fallback Pass (Error Recovery — parso CST)
+# ---------------------------------------------------------------------------
+
+def _parso_code_one_line(node) -> str:
+    """Render CST tokens without comments or layout from their prefixes.
+
+    Keep token values intact (notably whitespace inside string literals).
+    """
+    parts: List[str] = []
+
+    def visit(current):
+        if hasattr(current, "children"):
+            for child in current.children:
+                visit(child)
+        elif current.type not in ("newline", "endmarker"):
+            if parts and current.prefix:
+                parts.append(" ")
+            parts.append(current.value)
+
+    visit(node)
+    return "".join(parts).strip()
+
+
+def get_parso_decorators(node) -> List[str]:
+    decos: List[str] = []
+    for child in getattr(node, "children", []):
+        if child.type == "decorator":
+            decos.append(_parso_code_one_line(child))
+        elif child.type == "decorators":
+            for d in child.children:
+                if d.type == "decorator":
+                    decos.append(_parso_code_one_line(d))
+    return decos
+
+
+def get_parso_end_line(node) -> int:
+    leaf = node.get_last_leaf()
+    if leaf is None:
+        return node.end_pos[0]
+    if leaf.type == "newline" or leaf.value in ("\n", "\r\n"):
+        return max(node.start_pos[0], leaf.start_pos[0])
+    if node.end_pos[1] == 0 and node.end_pos[0] > node.start_pos[0]:
+        return node.end_pos[0] - 1
+    return node.end_pos[0]
+
+
+def get_parso_fn_signature(fn_node, is_async: bool = False, decos: Optional[List[str]] = None) -> str:
+    header_parts = []
+    for c in fn_node.children:
+        if c.type == "suite" or (c.type == "operator" and c.value == ":"):
+            break
+        if header_parts and c.get_first_leaf().prefix:
+            header_parts.append(" ")
+        header_parts.append(_parso_code_one_line(c))
+    raw = "".join(header_parts)
+    if is_async and not raw.startswith("async "):
+        raw = f"async {raw}"
+    if decos:
+        raw = " ".join(decos) + " " + raw
+    return raw
+
+
+def get_parso_class_signature(cls_node, decos: Optional[List[str]] = None) -> str:
+    return get_parso_fn_signature(cls_node, decos=decos)
+
+
+def _parso_recovery_end(siblings, index: int) -> tuple[int, int]:
+    """Include all indented CST siblings in a broken declaration's body."""
+    node = siblings[index]
+    end_line = get_parso_end_line(node)
+    next_index = index + 1
+    while next_index < len(siblings):
+        following = siblings[next_index]
+        if following.type == "newline":
+            next_index += 1
+            continue
+        if following.type == "endmarker" or following.start_pos[1] <= node.start_pos[1]:
+            break
+        end_line = max(end_line, get_parso_end_line(following))
+        next_index += 1
+    return end_line, next_index
+
+
+def _extract_methods_from_parso_node(node, expected_col: int, parent_name: str) -> List[OutlineItem]:
+    methods: List[OutlineItem] = []
+    decos: List[str] = []
+    target = node
+    if node.type == "decorated":
+        decos = get_parso_decorators(node)
+        target = node.children[-1]
+
+    is_async = False
+    fn = None
+    if target.type == "funcdef":
+        fn = target
+    elif target.type in ("async_stmt", "async_funcdef"):
+        is_async = True
+        for c in target.children:
+            if c.type == "funcdef":
+                fn = c
+                break
+
+    if fn and hasattr(fn, "name") and node.start_pos[1] == expected_col:
+        m_name = fn.name.value
+        m_start = node.start_pos[0]
+        m_end = get_parso_end_line(node)
+        m_sig = get_parso_fn_signature(fn, is_async=is_async, decos=decos)
+        is_t = bool(TEST_FUNC_PATTERN.match(m_name))
+        methods.append(
+            OutlineItem(
+                name=m_name,
+                kind="test" if is_t else "method",
+                start_line=m_start,
+                end_line=m_end,
+                raw_header=m_sig,
+                parent_name=parent_name,
+            )
+        )
+        suite = next((c for c in fn.children if c.type == "suite"), None)
+        if suite:
+            for s in suite.children:
+                methods.extend(_extract_methods_from_parso_node(s, expected_col, parent_name))
+    return methods
+
+
+def _parse_fallback_parso(
+    file_path: str,
+    content: str,
+    total_lines: int,
+    is_test: bool,
+    first_err: SyntaxError,
+    include_tests: bool = False,
+) -> ParsedFile:
+    import parso
+
+    parsed = ParsedFile(
+        file_path=file_path,
+        total_lines=total_lines,
+        is_test_file=is_test,
+    )
+
+    # 1. Grammar & Parse
+    # Use the newest grammar shipped by our minimum Parso version, even on
+    # older interpreters, so recovery recognizes modern declarations.
+    grammar = parso.load_grammar(version="3.14")
+
+    tree = grammar.parse(content)
+
+    # 2. Syntax notices collection
+    first_line = first_err.lineno or 1
+    first_msg = first_err.msg or "syntax error"
+    seen_lines = {first_line}
+    parsed.syntax_errors.append(SyntaxNotice(line=first_line, message=first_msg))
+
+    is_unclosed_construct = any(
+        phrase in first_msg for phrase in ("was never closed", "unclosed", "EOF while scanning")
+    )
+
+    # Parso can blame the first valid token *after* an unclosed construct.
+    # Suppress those boundary diagnostics, not errors inside surviving blocks.
+    declaration_positions = set()
+
+    def collect_declaration_positions(node):
+        if node.type in ("funcdef", "classdef", "async_stmt", "async_funcdef"):
+            declaration_positions.add(node.start_pos)
+        for child in getattr(node, "children", []):
+            collect_declaration_positions(child)
+
+    collect_declaration_positions(tree)
+    raw_additional_errors: List[tuple[int, str]] = []
+    for err in grammar.iter_errors(tree):
+        line = err.start_pos[0]
+        msg = err.message.removeprefix("SyntaxError: ")
+        if (
+            is_unclosed_construct
+            and msg == "invalid syntax"
+            and err.start_pos in declaration_positions
+        ):
+            continue
+        if line not in seen_lines and 1 <= line <= max(1, total_lines):
+            seen_lines.add(line)
+            raw_additional_errors.append((line, msg))
+
+    # 3. Outline extraction from CST
+    children = tree.children
+    i = 0
+    n_children = len(children)
+    salvaged_error_spans: List[tuple[int, int]] = []
+    type_alias_spans: List[tuple[int, int]] = []
+
+    while i < n_children:
+        child = children[i]
+        if child.type == "endmarker":
+            break
+
+        # Check for PEP 695 type alias: error_node 'type' followed by simple_stmt
+        if child.type == "error_node" and child.get_code().strip() == "type":
+            if i + 1 < n_children and children[i + 1].type == "simple_stmt":
+                stmt = children[i + 1]
+                for s in stmt.children:
+                    if s.type == "expr_stmt":
+                        t_raw = _parso_code_one_line(s.children[0])
+                        t_name = t_raw.split("[")[0].strip()
+                        t_val = _parso_code_one_line(s.children[-1])
+                        start_l = child.start_pos[0]
+                        end_l = get_parso_end_line(stmt)
+                        type_alias_spans.append((start_l, end_l))
+                        parsed.items.append(
+                            OutlineItem(
+                                name=t_name,
+                                kind="type",
+                                start_line=start_l,
+                                end_line=end_l,
+                                raw_header=f"type {t_raw} = {t_val}",
+                            )
+                        )
+                i += 2
+                continue
+
+        decos: List[str] = []
+        target = child
+        if child.type == "decorated":
+            decos = get_parso_decorators(child)
+            target = child.children[-1]
+
+        # Top-level simple statements: imports, variables
+        if child.type == "simple_stmt":
+            is_import = False
+            for s in child.children:
+                if s.type in ("import_name", "import_from"):
+                    is_import = True
+                    parsed.imports.append(child.get_code().strip())
+                    break
+            if is_import:
+                i += 1
+                continue
+
+            for s in child.children:
+                if s.type == "expr_stmt":
+                    target_name = s.children[0].get_code().strip()
+                    code_text = s.get_code().strip()
+                    if ":" in code_text or target_name.isupper() or target_name.startswith("__"):
+                        start_l = child.start_pos[0]
+                        end_l = get_parso_end_line(child)
+                        parsed.items.append(
+                            OutlineItem(
+                                name=target_name.split(":")[0].strip(),
+                                kind="var",
+                                start_line=start_l,
+                                end_line=end_l,
+                                raw_header=code_text,
+                            )
+                        )
+            i += 1
+            continue
+
+        # Top-level functions & async functions
+        if target.type in ("funcdef", "async_stmt", "async_funcdef"):
+            is_async = False
+            fn = None
+            if target.type == "funcdef":
+                fn = target
+            elif target.type in ("async_stmt", "async_funcdef"):
+                is_async = True
+                for c in target.children:
+                    if c.type == "funcdef":
+                        fn = c
+                        break
+
+            if fn and hasattr(fn, "name"):
+                name = fn.name.value
+                start_l = child.start_pos[0]
+                end_l = get_parso_end_line(child)
+                sig = get_parso_fn_signature(fn, is_async=is_async, decos=decos)
+                is_test_fn = bool(TEST_FUNC_PATTERN.match(name))
+                kind = "test" if is_test_fn else ("async def" if is_async else "function")
+
+                if is_test_fn:
+                    parsed.test_ranges.append((start_l, end_l))
+                    if not include_tests:
+                        i += 1
+                        continue
+
+                parsed.items.append(
+                    OutlineItem(
+                        name=name,
+                        kind=kind,
+                        start_line=start_l,
+                        end_line=end_l,
+                        raw_header=sig,
+                    )
+                )
+            i += 1
+            continue
+
+        # Top-level classes
+        if target.type == "classdef":
+            name = target.name.value
+            start_l = child.start_pos[0]
+            end_l = get_parso_end_line(child)
+            sig = get_parso_class_signature(target, decos=decos)
+            is_test_cls = bool(TEST_CLASS_PATTERN.match(name))
+            in_bases = False
+            for c in target.children:
+                if c.type == "operator" and c.value == "(":
+                    in_bases = True
+                elif c.type == "operator" and c.value == ")":
+                    break
+                elif in_bases and "TestCase" in c.get_code(include_prefix=False):
+                    is_test_cls = True
+                    break
+
+            if is_test_cls:
+                parsed.test_ranges.append((start_l, end_l))
+                if not include_tests:
+                    i += 1
+                    continue
+
+            class_item = OutlineItem(
+                name=name,
+                kind="test" if is_test_cls else "class",
+                start_line=start_l,
+                end_line=end_l,
+                raw_header=sig,
+            )
+
+            suite = next((c for c in target.children if c.type == "suite"), None)
+            if suite:
+                s_idx = 0
+                suite_children = suite.children
+                while s_idx < len(suite_children):
+                    s = suite_children[s_idx]
+                    s_decos: List[str] = []
+                    s_target = s
+                    if s.type == "decorated":
+                        s_decos = get_parso_decorators(s)
+                        s_target = s.children[-1]
+
+                    if s_target.type in ("funcdef", "async_stmt", "async_funcdef"):
+                        m_is_async = False
+                        m_fn = None
+                        if s_target.type == "funcdef":
+                            m_fn = s_target
+                        elif s_target.type in ("async_stmt", "async_funcdef"):
+                            m_is_async = True
+                            for c in s_target.children:
+                                if c.type == "funcdef":
+                                    m_fn = c
+                                    break
+                        if m_fn and hasattr(m_fn, "name"):
+                            m_name = m_fn.name.value
+                            m_start = s.start_pos[0]
+                            m_end = get_parso_end_line(s)
+                            m_sig = get_parso_fn_signature(m_fn, is_async=m_is_async, decos=s_decos)
+                            m_test = bool(TEST_FUNC_PATTERN.match(m_name))
+
+                            if m_test:
+                                parsed.test_ranges.append((m_start, m_end))
+                                if not include_tests:
+                                    s_idx += 1
+                                    continue
+
+                            class_item.children.append(
+                                OutlineItem(
+                                    name=m_name,
+                                    kind="test" if m_test else "method",
+                                    start_line=m_start,
+                                    end_line=m_end,
+                                    raw_header=m_sig,
+                                    parent_name=name,
+                                )
+                            )
+                        s_idx += 1
+                    elif s.type == "simple_stmt":
+                        for expr in s.children:
+                            if expr.type == "expr_stmt":
+                                class_item.fields_or_variants.append(expr.get_code().strip())
+                        s_idx += 1
+                    elif s.type == "error_node":
+                        s_decos = get_parso_decorators(s)
+                        kw = None
+                        nm = None
+                        is_as = False
+                        for sub in s.children:
+                            if sub.type == "keyword":
+                                if sub.value == "async":
+                                    is_as = True
+                                elif sub.value in ("def", "class"):
+                                    kw = sub.value
+                            elif kw and sub.type == "name":
+                                nm = sub.value
+                                break
+                        if kw and nm:
+                            m_start = s.start_pos[0]
+                            m_end = get_parso_end_line(s)
+                            prefix = "async def" if is_as else "def"
+                            deco_p = (" ".join(s_decos) + " ") if s_decos else ""
+                            m_test = bool(TEST_FUNC_PATTERN.match(nm))
+
+                            m_end, s_idx = _parso_recovery_end(suite_children, s_idx)
+
+                            salvaged_error_spans.append((m_start, m_end))
+                            class_item.end_line = max(class_item.end_line, m_end)
+
+                            if m_test:
+                                parsed.test_ranges.append((m_start, m_end))
+                                if not include_tests:
+                                    continue
+                            class_item.children.append(
+                                OutlineItem(
+                                    name=nm,
+                                    kind="test" if m_test else "method",
+                                    start_line=m_start,
+                                    end_line=m_end,
+                                    raw_header=f"{deco_p}{prefix} {nm}() [syntax error]",
+                                    parent_name=name,
+                                )
+                            )
+                        else:
+                            s_idx += 1
+                    else:
+                        s_idx += 1
+
+            parsed.items.append(class_item)
+            i += 1
+            continue
+
+        # Top-level error nodes (salvaging broken def/class)
+        if child.type == "error_node":
+            decos = get_parso_decorators(child)
+            kw = None
+            nm = None
+            is_async_hdr = False
+            for sub in child.children:
+                if sub.type == "keyword":
+                    if sub.value == "async":
+                        is_async_hdr = True
+                    elif sub.value in ("def", "class"):
+                        kw = sub.value
+                elif kw and sub.type == "name":
+                    nm = sub.value
+                    break
+
+            if kw and nm:
+                start_l = child.start_pos[0]
+                end_l = get_parso_end_line(child)
+                deco_prefix = (" ".join(decos) + " ") if decos else ""
+
+                if kw == "class":
+                    is_test_cls = bool(TEST_CLASS_PATTERN.match(nm))
+                    class_item = OutlineItem(
+                        name=nm,
+                        kind="test" if is_test_cls else "class",
+                        start_line=start_l,
+                        end_line=end_l,
+                        raw_header=f"{deco_prefix}class {nm} [syntax error]",
+                    )
+
+                    # Gather subsequent child methods that belong to this class by indentation
+                    j = i + 1
+                    child_methods = []
+                    while j < n_children:
+                        next_ch = children[j]
+                        if next_ch.type == "endmarker":
+                            break
+                        if next_ch.start_pos[1] > child.start_pos[1]:
+                            m_items = _extract_methods_from_parso_node(next_ch, next_ch.start_pos[1], nm)
+                            if m_items:
+                                child_methods.extend(m_items)
+                                end_l = max(end_l, m_items[-1].end_line)
+                            else:
+                                end_l = max(end_l, get_parso_end_line(next_ch))
+                            j += 1
+                        else:
+                            break
+
+                    for idx, m in enumerate(child_methods):
+                        if idx + 1 < len(child_methods):
+                            m.end_line = min(m.end_line, child_methods[idx + 1].start_line - 1)
+                        if m.kind == "test":
+                            parsed.test_ranges.append((m.start_line, m.end_line))
+                            if not include_tests:
+                                continue
+                        class_item.children.append(m)
+
+                    class_item.end_line = end_l
+                    salvaged_error_spans.append((start_l, end_l))
+
+                    if is_test_cls:
+                        parsed.test_ranges.append((start_l, end_l))
+                        if not include_tests:
+                            i = j
+                            continue
+
+                    parsed.items.append(class_item)
+                    i = j
+                    continue
+                else:
+                    # Broken function header
+                    is_test_fn = bool(TEST_FUNC_PATTERN.match(nm))
+                    prefix = "async def" if is_async_hdr else "def"
+                    fn_kind = "test" if is_test_fn else ("async def" if is_async_hdr else "function")
+
+                    end_l, j = _parso_recovery_end(children, i)
+
+                    salvaged_error_spans.append((start_l, end_l))
+
+                    if is_test_fn:
+                        parsed.test_ranges.append((start_l, end_l))
+                        if not include_tests:
+                            i = j
+                            continue
+
+                    parsed.items.append(
+                        OutlineItem(
+                            name=nm,
+                            kind=fn_kind,
+                            start_line=start_l,
+                            end_line=end_l,
+                            raw_header=f"{deco_prefix}{prefix} {nm}() [syntax error]",
+                        )
+                    )
+                    i = j
+                    continue
+
+        i += 1
+
+    # Hide recovery cascades within broken headers/bodies and Parso's false
+    # diagnostics for the type aliases reconstructed above.
+    suppressed_spans = salvaged_error_spans + type_alias_spans
+    for err_line, err_msg in raw_additional_errors:
+        if not any(s <= err_line <= e for s, e in suppressed_spans):
+            parsed.syntax_errors.append(SyntaxNotice(line=err_line, message=err_msg))
+
+    parsed.syntax_errors.sort(key=lambda s: s.line)
+    parsed.items.sort(key=lambda it: it.start_line)
+    return parsed
+
+
+# ---------------------------------------------------------------------------
+# Primary Pass (Fast Path — ast.AST)
+# ---------------------------------------------------------------------------
+
 def parse_source_file(file_path: str, content: str, include_tests: bool = False) -> ParsedFile:
     src_lines = split_source_lines(content, keepends=False)
     total_lines = len(src_lines)
@@ -172,250 +648,21 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
         is_test_file=is_test,
     )
 
-    tree: Optional[ast.AST] = None
-    salvaged_items: List[OutlineItem] = []
-    masked_block_ends = {}
-    stub_lines = set()
-    masked_lines = set()
-
     try:
         tree = ast.parse(content, filename=file_path, type_comments=True)
     except SyntaxError as first_err:
-        first_line = first_err.lineno or 1
-        first_msg = first_err.msg or "syntax error"
-        notice = SyntaxNotice(line=first_line, message=first_msg)
-        parsed.syntax_errors.append(notice)
-
-        # Fallback: Iterative line masking with up to 100 attempts
-        working_lines = split_source_lines(content, keepends=True)
-        original_len = len(working_lines)
-        seen_states = set()
-        max_attempts = 100
-        current_err: Optional[SyntaxError] = first_err
-
-        for _ in range(max_attempts):
-            if current_err is None:
-                break
-            lineno = current_err.lineno
-            if lineno is None or lineno < 1 or lineno > len(working_lines):
-                break
-
-            line_idx = lineno - 1
-            line = working_lines[line_idx]
-            indent = get_indent(line)
-            leading_ws = line[: len(line) - len(line.lstrip(" \t"))]
-            if not line.strip():
-                leading_ws = ""
-
-            state_key = (line_idx, line)
-            if state_key in seen_states:
-                # Cannot make further progress by masking this line
-                break
-            seen_states.add(state_key)
-
-            # Check if this line is a block header followed by an indented block.
-            # E.g. broken def/class/if header whose masking would cause IndentationError cascades.
-            end_idx = get_block_end(working_lines, line_idx)
-
-            # Check if header matches def/async def/class
-            m_hdr = HEADER_DEF_PATTERN.match(line)
-
-            if end_idx > line_idx or m_hdr:
-                # Update notice message with masked line range if not already suffixed
-                if end_idx > line_idx:
-                    mask_suffix = f"(L{line_idx + 1}-L{end_idx + 1} masked)"
-                else:
-                    mask_suffix = f"(L{line_idx + 1} masked)"
-                for n in parsed.syntax_errors:
-                    if n.line == lineno and "masked)" not in n.message:
-                        n.message = f"{n.message} {mask_suffix}"
-
-                # Salvage header definition if it matches def/async def/class
-                if m_hdr:
-                    k_raw, name = m_hdr.group(1), m_hdr.group(2)
-                    start_l = line_idx + 1
-                    end_l = end_idx + 1
-
-                    # Scan upward for leading decorators
-                    deco_start, decos = collect_decorators(working_lines, line_idx, 0)
-                    if deco_start is not None:
-                        start_l = deco_start + 1
-
-                    deco_prefix = (" ".join(decos) + " ") if decos else ""
-
-                    if k_raw == "class":
-                        cls_is_test = bool(TEST_CLASS_PATTERN.match(name))
-                        class_item = OutlineItem(
-                            name=name,
-                            kind="test" if cls_is_test else "class",
-                            start_line=start_l,
-                            end_line=end_l,
-                            raw_header=f"{deco_prefix}class {name} [syntax error]",
-                        )
-                        # Extract child methods inside the unparsable class
-                        k = line_idx + 1
-                        while k <= end_idx:
-                            m_ch = HEADER_DEF_PATTERN.match(working_lines[k])
-                            if m_ch and m_ch.group(1) in ("def", "async def"):
-                                ch_k_raw, ch_name = m_ch.group(1), m_ch.group(2)
-                                ch_start = k + 1
-                                # Scan upward for method decorators inside the class
-                                ch_deco_start, ch_decos = collect_decorators(
-                                    working_lines, k, line_idx + 1
-                                )
-                                if ch_deco_start is not None:
-                                    ch_start = ch_deco_start + 1
-
-                                ch_deco_prefix = (" ".join(ch_decos) + " ") if ch_decos else ""
-
-                                ch_end_idx = min(get_block_end(working_lines, k), end_idx)
-                                ch_end = ch_end_idx + 1
-                                ch_is_test = bool(TEST_FUNC_PATTERN.match(ch_name))
-                                ch_kind = "test" if ch_is_test else "method"
-                                class_item.children.append(
-                                    OutlineItem(
-                                        name=ch_name,
-                                        kind=ch_kind,
-                                        start_line=ch_start,
-                                        end_line=ch_end,
-                                        raw_header=f"{ch_deco_prefix}{ch_k_raw} {ch_name}()",
-                                        parent_name=name,
-                                    )
-                                )
-                                k = ch_end_idx + 1
-                            else:
-                                k += 1
-
-                        salvaged_items.append(class_item)
-                    else:
-                        fn_is_test = bool(TEST_FUNC_PATTERN.match(name))
-                        fn_kind = "test" if fn_is_test else ("async def" if "async" in k_raw else "function")
-                        # Check if method inside an outer class, skipping comments and blank lines
-                        parent_cls = None
-                        for p_idx in range(line_idx - 1, -1, -1):
-                            prev_l = working_lines[p_idx]
-                            stripped_p = prev_l.strip()
-                            if not stripped_p or stripped_p.startswith("#"):
-                                continue
-                            if get_indent(prev_l) < indent:
-                                m_p = re.match(r"^\s*class\s+([a-zA-Z_][a-zA-Z0-9_]*)", prev_l)
-                                if m_p:
-                                    parent_cls = m_p.group(1)
-                                break
-
-                        salvaged_items.append(
-                            OutlineItem(
-                                name=name,
-                                kind="test" if fn_is_test else ("method" if parent_cls else fn_kind),
-                                start_line=start_l,
-                                end_line=end_l,
-                                raw_header=f"{deco_prefix}{k_raw} {name} [syntax error]",
-                                parent_name=parent_cls,
-                            )
-                        )
-
-            # Keep decorators attached to a harmless definition stub. Otherwise
-            # use pass so masking the only statement does not empty its suite.
-            if m_hdr:
-                stub = (
-                    "class __skim_masked__: pass\n"
-                    if m_hdr.group(1) == "class"
-                    else "def __skim_masked__(): pass\n"
-                )
-                working_lines[line_idx] = leading_ws + stub
-                stub_lines.add(lineno)
-            else:
-                working_lines[line_idx] = leading_ws + "# syntax error masked\n"
-            for k in range(line_idx + 1, end_idx + 1):
-                working_lines[k] = "# syntax error masked\n"
-            assert len(working_lines) == original_len
-
-            masked_lines.update(range(line_idx + 1, end_idx + 2))
-            masked_block_ends[lineno] = end_idx + 1
-
-            try:
-                try:
-                    tree = ast.parse("".join(working_lines), filename=file_path, type_comments=True)
-                except IndentationError as ind_err:
-                    # Masking the only statement of a suite left it empty; use pass instead.
-                    if m_hdr or "expected an indented block" not in (ind_err.msg or ""):
-                        raise
-                    working_lines[line_idx] = leading_ws + "pass\n"
-                    assert len(working_lines) == original_len
-                    tree = ast.parse("".join(working_lines), filename=file_path, type_comments=True)
-                break  # Successful recovery!
-            except SyntaxError as next_err:
-                current_err = next_err
-                # Only record distinct line notices
-                if not any(n.line == next_err.lineno for n in parsed.syntax_errors):
-                    parsed.syntax_errors.append(
-                        SyntaxNotice(line=next_err.lineno or 1, message=next_err.msg or "syntax error")
-                    )
-            except Exception:
-                break
+        return _parse_fallback_parso(
+            file_path=file_path,
+            content=content,
+            total_lines=total_lines,
+            is_test=is_test,
+            first_err=first_err,
+            include_tests=include_tests,
+        )
     except Exception as e:
         parsed.syntax_errors.append(
             SyntaxNotice(line=1, message=str(e))
         )
-        return parsed
-
-    parsed.masked_lines = sorted(masked_lines)
-
-    def recovered_end(node: ast.AST) -> int:
-        end = get_end_line(node)
-        return max([end] + [
-            masked_end for start, masked_end in masked_block_ends.items()
-            if node.lineno <= start <= end
-        ])
-
-    def merge_salvaged() -> None:
-        if not salvaged_items:
-            return
-        for s_item in salvaged_items:
-            # The AST still contains excluded test classes, but parsed.items
-            # does not. Do not promote their recovered methods to top level.
-            if not include_tests and any(
-                start <= s_item.start_line <= end
-                for start, end in parsed.test_ranges
-            ):
-                continue
-            # Check test filtering for salvaged items
-            if s_item.kind == "test":
-                parsed.test_ranges.append((s_item.start_line, s_item.end_line))
-                if not include_tests:
-                    continue
-
-            if s_item.parent_name:
-                parent = next(
-                    (it for it in parsed.items
-                     if it.name == s_item.parent_name and it.kind in ("class", "test")
-                     and it.start_line <= s_item.start_line <= it.end_line),
-                    None,
-                )
-                if parent:
-                    parent.children.append(s_item)
-                    parent.children.sort(key=lambda ch: ch.start_line)
-                    parent.end_line = max(parent.end_line, s_item.end_line)
-                else:
-                    parsed.items.append(s_item)
-            else:
-                # If s_item is a class, filter its child test methods if include_tests is False
-                if s_item.kind in ("class", "test"):
-                    filtered_children = []
-                    for ch in s_item.children:
-                        if ch.kind == "test":
-                            parsed.test_ranges.append((ch.start_line, ch.end_line))
-                            if not include_tests:
-                                continue
-                        filtered_children.append(ch)
-                    s_item.children = filtered_children
-
-                parsed.items.append(s_item)
-
-        parsed.items.sort(key=lambda it: it.start_line)
-
-    if tree is None:
-        merge_salvaged()
         return parsed
 
     # 1. Collect imports
@@ -428,15 +675,11 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
     # 2. Extract outline items
     for node in tree.body:
-        # Skip internal mask stubs
-        if node.lineno in stub_lines:
-            continue
-
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             is_async = isinstance(node, ast.AsyncFunctionDef)
             is_test_fn = is_test_func(node)
             start_l = get_start_line(node)
-            end_l = recovered_end(node)
+            end_l = get_end_line(node)
 
             if is_test_fn:
                 parsed.test_ranges.append((start_l, end_l))
@@ -446,7 +689,6 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
             kind = "test" if is_test_fn else ("async def" if is_async else "function")
             sig = get_fn_signature(node, is_async=is_async)
 
-            # Prepend decorators in signature if any
             if node.decorator_list:
                 decos = ["@" + ast.unparse(d) for d in node.decorator_list]
                 sig = " ".join(decos) + " " + sig
@@ -463,7 +705,7 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
         elif isinstance(node, ast.ClassDef):
             is_test_cls = is_test_class(node)
             start_l = get_start_line(node)
-            end_l = recovered_end(node)
+            end_l = get_end_line(node)
 
             if is_test_cls:
                 parsed.test_ranges.append((start_l, end_l))
@@ -485,14 +727,11 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
 
             # Process class body
             for child in node.body:
-                if child.lineno in stub_lines:
-                    continue
-
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     child_async = isinstance(child, ast.AsyncFunctionDef)
                     child_test = is_test_func(child)
                     ch_start = get_start_line(child)
-                    ch_end = recovered_end(child)
+                    ch_end = get_end_line(child)
 
                     if child_test:
                         parsed.test_ranges.append((ch_start, ch_end))
@@ -542,7 +781,6 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
             )
 
         elif isinstance(node, ast.AnnAssign):
-            # Top-level annotated constant / variable
             name = ast.unparse(node.target)
             start_l = get_start_line(node)
             end_l = get_end_line(node)
@@ -559,8 +797,6 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
             )
 
         elif isinstance(node, ast.Assign):
-            # Top-level simple constant (e.g. UPPER_CASE = ...)
-            # Only record if simple uppercase variable or type-like
             for target in node.targets:
                 if isinstance(target, ast.Name) and (target.id.isupper() or target.id.startswith("__")):
                     name = target.id
@@ -577,5 +813,5 @@ def parse_source_file(file_path: str, content: str, include_tests: bool = False)
                         )
                     )
 
-    merge_salvaged()
+    parsed.items.sort(key=lambda it: it.start_line)
     return parsed

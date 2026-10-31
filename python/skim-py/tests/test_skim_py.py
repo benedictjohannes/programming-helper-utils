@@ -23,7 +23,7 @@ class TestSkimPyParser(unittest.TestCase):
         parsed = parse_source_file("example.py", code)
         self.assertEqual([it.name for it in parsed.items], ["before", "broken", "after"])
         self.assertEqual(len(parsed.syntax_errors), 1)
-        self.assertEqual(parsed.masked_lines, list(range(4, 116)))
+        self.assertEqual(parsed.syntax_errors[0].line, 4)
 
     def test_recovered_method_in_excluded_test_class(self):
         code = "class TestSuite:\n    def broken(self, x,\n        return 1\n"
@@ -55,7 +55,6 @@ class TestSkimPyParser(unittest.TestCase):
                 parsed = parse_source_file("example.py", code)
                 self.assertEqual(len(parsed.items), 2)
                 self.assertEqual(len(parsed.syntax_errors), 1)
-                self.assertEqual(parsed.masked_lines, [len(header.splitlines()) + 1])
                 self.assertEqual(parsed.items[1].raw_header, "def after()")
 
     def test_recovered_class_and_method_ranges_include_original_body(self):
@@ -67,7 +66,86 @@ class TestSkimPyParser(unittest.TestCase):
     def test_recovered_header_without_body(self):
         parsed = parse_source_file("example.py", "def broken(x,\n")
         self.assertEqual([it.name for it in parsed.items], ["broken"])
-        self.assertEqual(parsed.masked_lines, [1])
+        self.assertEqual(parsed.items[0].start_line, 1)
+
+    def test_broken_declaration_includes_compound_body(self):
+        bodies = (
+            "    if x:\n        return 1\n    return 2\n",
+            "    for item in x:\n        print(item)\n    return x\n",
+            "    while x:\n        break\n    return x\n",
+            "    try:\n        work()\n    except ValueError:\n        pass\n",
+            "    with context():\n        work()\n    return x\n",
+            "    def inner():\n        return 1\n    return inner()\n",
+        )
+        for body in bodies:
+            for method in (False, True):
+                with self.subTest(body=body, method=method):
+                    code = "def broken(x,\n" + body + "\ndef after(): pass\n"
+                    if method:
+                        code = "class Outer:\n" + "".join(
+                            "    " + line if line.strip() else line
+                            for line in code.splitlines(keepends=True)
+                        )
+                    parsed = parse_source_file("example.py", code)
+                    items = parsed.items[0].children if method else parsed.items
+                    self.assertEqual([it.name for it in items], ["broken", "after"])
+                    self.assertEqual(items[0].start_line, 2 if method else 1)
+                    self.assertEqual(items[0].end_line, len(body.splitlines()) + (2 if method else 1))
+                    self.assertEqual(len(parsed.syntax_errors), 1)
+
+    def test_fallback_filters_testcase_bases(self):
+        for base in ("unittest.TestCase", "TestCase", "unittest.TestCase, Mixin"):
+            with self.subTest(base=base):
+                code = f"class Checks({base}):\n    def helper(self): pass\nx =\n"
+                excluded = parse_source_file("example.py", code)
+                self.assertEqual(excluded.items, [])
+                self.assertEqual(excluded.test_ranges, [(1, 2)])
+                included = parse_source_file("example.py", code, include_tests=True)
+                self.assertEqual(included.items[0].kind, "test")
+                self.assertEqual(included.items[0].children[0].name, "helper")
+
+    def test_fallback_signatures_ignore_comment_prefixes_and_layout(self):
+        code = '''# module comment
+@decorate(
+    # decorator comment
+    "a  b",
+)
+def good(
+    # parameter comment
+    value: str = "x  y",
+) -> str:
+    return value
+
+# class comment
+class Good(
+    # base comment
+    Base,
+):
+    pass
+x =
+'''
+        parsed = parse_source_file("example.py", code)
+        self.assertEqual(parsed.items[0].raw_header,
+                         '@decorate( "a  b", ) def good( value: str = "x  y", ) -> str')
+        self.assertEqual(parsed.items[1].raw_header, "class Good( Base, )")
+
+    def test_stacked_decorators_on_broken_headers(self):
+        for method in (False, True):
+            with self.subTest(method=method):
+                code = "# comment\n@first\n@second\ndef broken(x,\n    return x\n"
+                if method:
+                    code = "class Outer:\n" + "".join(
+                        "    " + line for line in code.splitlines(keepends=True)
+                    )
+                parsed = parse_source_file("example.py", code)
+                item = parsed.items[0].children[0] if method else parsed.items[0]
+                self.assertEqual(item.raw_header, "@first @second def broken() [syntax error]")
+                self.assertEqual(item.start_line, 3 if method else 2)
+
+    def test_unclosed_construct_keeps_independent_notices(self):
+        code = "x = [\ndef good():\n    y =\n    return 1\nz =\n"
+        parsed = parse_source_file("example.py", code)
+        self.assertEqual([err.line for err in parsed.syntax_errors], [1, 3, 5])
 
     def test_recovered_method_attaches_to_correct_repeated_class(self):
         code = (
@@ -78,11 +156,10 @@ class TestSkimPyParser(unittest.TestCase):
         self.assertEqual(parsed.items[0].children, [])
         self.assertEqual([it.name for it in parsed.items[1].children], ["broken"])
 
-    def test_masking_summary_and_clean_source(self):
+    def test_syntax_notices_and_clean_source(self):
         parsed = parse_source_file("example.py", "x =\ny =\n")
-        self.assertEqual(parsed.masked_lines, [1, 2])
-        self.assertEqual(parsed.masking_warning, "# parsed with 2 lines masked (L1, L2)")
-        self.assertEqual(parse_source_file("example.py", "x = 1\n").masking_warning, "")
+        self.assertGreater(len(parsed.syntax_errors), 0)
+        self.assertEqual(parse_source_file("example.py", "x = 1\n").syntax_errors, [])
 
     def test_casing_exact_precedence(self):
         casing_path = str(FIXTURES_DIR / "casing.py")
@@ -161,7 +238,7 @@ def valid_after():
         # Verify it didn't cascade into eating lines one-by-one with IndentationErrors
         self.assertEqual(len(parsed.syntax_errors), 1)
         self.assertEqual(parsed.syntax_errors[0].line, 4)
-        self.assertIn("masked", parsed.syntax_errors[0].message)
+        self.assertIn("never closed", parsed.syntax_errors[0].message)
 
         # Check salvaged item properties
         broken_item = next(it for it in parsed.items if it.name == "broken_header")
@@ -186,7 +263,7 @@ def valid_after():
         self.assertIn("valid_after", names)
         self.assertEqual(len(parsed.syntax_errors), 1)
         self.assertEqual(parsed.syntax_errors[0].line, 4)
-        self.assertIn("(L4-L6 masked)", parsed.syntax_errors[0].message)
+        self.assertIn("never closed", parsed.syntax_errors[0].message)
 
     def test_error_inside_dict_recovers(self):
         code = 'config = {\n    "a": 1,\n    "b": ,\n    "c": 3,\n}\ndef valid(): ...\n'
@@ -256,11 +333,51 @@ def valid_after():
         parsed = parse_source_file(cascade_path, content)
         self.assertEqual(len(parsed.syntax_errors), 1)
         self.assertEqual(parsed.syntax_errors[0].line, 5)
-        self.assertIn("(L5-L7 masked)", parsed.syntax_errors[0].message)
+        self.assertIn("never closed", parsed.syntax_errors[0].message)
         names = [it.name for it in parsed.items]
         self.assertIn("valid_before", names)
         self.assertIn("broken_header", names)
         self.assertIn("valid_after", names)
+
+    def test_unclosed_bracket_fixture(self):
+        fixture_path = str(FIXTURES_DIR / "unclosed_bracket.py")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        parsed = parse_source_file(fixture_path, content)
+        self.assertGreater(len(parsed.syntax_errors), 0)
+        self.assertEqual(parsed.syntax_errors[0].line, 5)
+        self.assertIn("never closed", parsed.syntax_errors[0].message)
+        names = [it.name for it in parsed.items]
+        self.assertIn("valid_before", names)
+        self.assertIn("valid_after", names)
+
+    def test_pep695_syntax_error_fixture(self):
+        fixture_path = str(FIXTURES_DIR / "pep695_syntax_error.py")
+        with open(fixture_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        parsed = parse_source_file(fixture_path, content)
+        self.assertGreater(len(parsed.syntax_errors), 0)
+        names = [it.name for it in parsed.items]
+        self.assertIn("MyTypeAlias", names)
+        self.assertIn("ValidClass", names)
+        self.assertIn("broken_func", names)
+        self.assertIn("SecondaryAlias", names)
+        self.assertIn("valid_after", names)
+
+        # Check ValidClass children
+        cls_item = next(it for it in parsed.items if it.name == "ValidClass")
+        ch_names = [ch.name for ch in cls_item.children]
+        self.assertIn("get_item", ch_names)
+        self.assertEqual(cls_item.raw_header, "class ValidClass[T]")
+        self.assertEqual(cls_item.fields_or_variants, ["item: T"])
+        self.assertEqual((cls_item.start_line, cls_item.end_line), (4, 8))
+        alias = next(it for it in parsed.items if it.name == "MyTypeAlias")
+        self.assertEqual(alias.raw_header, "type MyTypeAlias[T] = dict[str, T]")
+        after = next(it for it in parsed.items if it.name == "valid_after")
+        self.assertEqual(after.raw_header, "def valid_after[U](val: U) -> U")
+        self.assertEqual((after.start_line, after.end_line), (18, 19))
+        if sys.version_info >= (3, 12):
+            self.assertEqual([err.line for err in parsed.syntax_errors], [11])
 
     def test_decorator_leak_prevention(self):
         code = """@app.route("/x")
@@ -329,6 +446,33 @@ def valid_after():
 
 
 class TestSkimPyCLI(unittest.TestCase):
+    def test_raw_broken_block_includes_compound_body(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "example.py"
+            for method in (False, True):
+                with self.subTest(method=method):
+                    original = "def broken(x,\n    if x:\n        return 1\n    return 2\n"
+                    if method:
+                        original = "".join("    " + line for line in original.splitlines(keepends=True))
+                    path.write_text(("class Outer:\n" if method else "") + original
+                                    + ("    " if method else "") + "def after(): pass\n")
+                    stdout = io.StringIO()
+                    with redirect_stdout(stdout):
+                        result = main(["block", str(path), "Outer.broken" if method else "broken", "--raw"])
+                    self.assertEqual(result, 0)
+                    self.assertEqual(stdout.getvalue(), original)
+
+    def test_block_reports_error_after_unclosed_construct(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "example.py"
+            path.write_text("x = [\ndef good():\n    y =\n    return 1\n")
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                result = main(["block", str(path), "good"])
+            self.assertEqual(result, 0)
+            self.assertIn("[! 1 syntax error]", stdout.getvalue())
+            self.assertIn("Syntax Notice: L3:", stdout.getvalue())
+
     def test_recovered_async_method_is_visible(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "example.py"
@@ -338,7 +482,7 @@ class TestSkimPyCLI(unittest.TestCase):
                 result = main(["glance", "-s", str(path)])
             self.assertEqual(result, 0)
             self.assertIn("async def fetch", stdout.getvalue())
-            self.assertIn("# parsed with 3 lines masked (L1, L2, L3)", stdout.getvalue())
+            self.assertIn("[! 1 syntax error]", stdout.getvalue())
 
     def test_raw_block_preserves_original_source_and_warns_on_stderr(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -350,14 +494,12 @@ class TestSkimPyCLI(unittest.TestCase):
                 result = main(["block", str(path), "broken", "--raw"])
             self.assertEqual(result, 0)
             self.assertEqual(stdout.getvalue(), original)
-            self.assertIn("# parsed with 1 line masked (L2)", stderr.getvalue())
 
     def test_block_warns_about_masking_outside_requested_range(self):
         stdout, stderr = io.StringIO(), io.StringIO()
         with redirect_stdout(stdout), redirect_stderr(stderr):
             result = main(["block", str(FIXTURES_DIR / "syntax_error.py"), "valid_after"])
         self.assertEqual(result, 0)
-        self.assertIn("# parsed with 1 line masked (L7)", stderr.getvalue())
 
     def test_raw_class_includes_last_broken_method_body(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -369,7 +511,6 @@ class TestSkimPyCLI(unittest.TestCase):
                 result = main(["block", str(path), "Outer", "--raw"])
             self.assertEqual(result, 0)
             self.assertEqual(stdout.getvalue(), original)
-            self.assertIn("# parsed with 2 lines masked (L2, L3)", stderr.getvalue())
 
     def test_python_version_guard(self):
         err = io.StringIO()
