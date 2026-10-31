@@ -199,15 +199,17 @@ function triggerFileInput() {
 
 function handleFileSelected(e: Event) {
   const target = e.target as HTMLInputElement;
-  if (target.files && target.files.length > 0) {
-    readFile(target.files[0]);
+  const file = target.files?.[0];
+  if (file) {
+    readFile(file);
   }
 }
 
 function handleDrop(e: DragEvent) {
   isDragging.value = false;
-  if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-    readFile(e.dataTransfer.files[0]);
+  const file = e.dataTransfer?.files?.[0];
+  if (file) {
+    readFile(file);
   }
 }
 

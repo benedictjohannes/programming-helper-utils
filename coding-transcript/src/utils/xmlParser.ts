@@ -21,6 +21,9 @@ export function parseXmlBlocks(text: string): XmlBlock[] {
     const fullMatch = match[0];
     const tagName = match[1];
     const innerContent = match[2];
+    if (tagName === undefined || innerContent === undefined) {
+      continue;
+    }
     const matchStart = match.index;
 
     // Check if innerContent contains another opening tag for the same tagName.

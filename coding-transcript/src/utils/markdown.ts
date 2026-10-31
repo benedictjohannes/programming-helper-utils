@@ -23,8 +23,11 @@ export function highlightCode(code: string, lang = ''): string {
   if (!code) return '';
   const cleanLang = lang.trim().toLowerCase();
   const grammar = Prism.languages[cleanLang] || Prism.languages.text;
+  if (!grammar) {
+    return escapeHtml(code);
+  }
   try {
-    return Prism.highlight(code, grammar || Prism.languages.text, cleanLang || 'text');
+    return Prism.highlight(code, grammar, cleanLang || 'text');
   } catch (err) {
     return escapeHtml(code);
   }

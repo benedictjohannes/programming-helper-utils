@@ -44,8 +44,8 @@ export const antigravityParser: PlatformParser = {
 function parseJsonlRecords(rawText: string): RawTranscriptRecord[] {
   const lines = rawText.split('\n');
   const records: RawTranscriptRecord[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
     if (!line) continue;
     try {
       const parsed = JSON.parse(line);
@@ -61,14 +61,17 @@ function parseModelFromContent(content?: string): ModelInfo | undefined {
   if (!content) return undefined;
   // Match: setting `Model Selection` (from ... )?to <model-name>.
   const match = content.match(/setting\s+`Model Selection`\s+(?:from\s+.*?\s+)?to\s+([^\n]+?)\.(?:\s|$)/i);
-  if (!match) return undefined;
+  const matchName = match?.[1];
+  if (!matchName) return undefined;
 
-  const raw = match[1].trim();
+  const raw = matchName.trim();
   const variantMatch = raw.match(/^(.*?)\s*\(([^)]+)\)$/);
-  if (variantMatch) {
+  const variantModel = variantMatch?.[1];
+  const variantType = variantMatch?.[2];
+  if (variantModel && variantType) {
     return {
-      model: variantMatch[1].trim(),
-      variant: variantMatch[2].trim(),
+      model: variantModel.trim(),
+      variant: variantType.trim(),
       provider: undefined,
     };
   }
@@ -86,6 +89,10 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
 
   while (i < records.length) {
     const rec = records[i];
+    if (!rec) {
+      i++;
+      continue;
+    }
 
     // Check if user input updates model settings
     const detectedModel = parseModelFromContent(rec.content);
@@ -132,14 +139,18 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
       let totalCacheReadTokens = 0;
       const thinkingParts: string[] = [];
 
-      while (
-        i < records.length &&
-        records[i].source === 'MODEL' &&
-        records[i].type === 'PLANNER_RESPONSE' &&
-        records[i].tool_calls &&
-        records[i].tool_calls!.length > 0
-      ) {
+      while (i < records.length) {
         const toolCallRec = records[i];
+        if (
+          !toolCallRec ||
+          toolCallRec.source !== 'MODEL' ||
+          toolCallRec.type !== 'PLANNER_RESPONSE' ||
+          !toolCallRec.tool_calls ||
+          toolCallRec.tool_calls.length === 0
+        ) {
+          break;
+        }
+
         totalInputTokens += toolCallRec.input_tokens || 0;
         totalOutputTokens += toolCallRec.output_tokens || 0;
         totalCacheReadTokens += toolCallRec.cache_read_tokens || 0;
@@ -147,7 +158,7 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
           thinkingParts.push(toolCallRec.thinking.trim());
         }
 
-        for (const tc of toolCallRec.tool_calls!) {
+        for (const tc of toolCallRec.tool_calls) {
           const toolId = `tool-${toolCallRec.step_index}-${tc.name}`;
           const summary = getToolSummary(tc.name, tc.args);
 
@@ -156,12 +167,12 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
           let toolStatus = toolCallRec.status || 'DONE';
           let error = toolCallRec.error;
 
-          if (i + 1 < records.length && records[i + 1].type === 'GENERIC') {
-            const resultRec = records[i + 1];
-            outputContent = resultRec.content || '';
-            resultStepIndex = resultRec.step_index;
-            if (resultRec.status) toolStatus = resultRec.status;
-            if (resultRec.error) error = resultRec.error;
+          const nextRec = records[i + 1];
+          if (nextRec && nextRec.type === 'GENERIC') {
+            outputContent = nextRec.content || '';
+            resultStepIndex = nextRec.step_index;
+            if (nextRec.status) toolStatus = nextRec.status;
+            if (nextRec.error) error = nextRec.error;
             i++; // consume result record
           }
 
