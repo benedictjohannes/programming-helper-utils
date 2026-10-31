@@ -34,6 +34,12 @@ export interface ToolExecutionItem {
   createdAt: string;
 }
 
+export interface ModelInfo {
+  model: string;
+  variant?: string;
+  provider?: string;
+}
+
 export type TimelineItemType = 
   | 'user_input'
   | 'tool_executions'
@@ -58,6 +64,8 @@ export interface TimelineItem {
     output?: number;
     cacheRead?: number;
   };
+  // Model info
+  modelInfo?: ModelInfo;
 }
 
 export interface SearchMatch {

@@ -1,4 +1,4 @@
-import type { TimelineItem, ToolExecutionItem } from '../types';
+import type { TimelineItem, ToolExecutionItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const claudeCodeParser: PlatformParser = {
@@ -40,6 +40,15 @@ export const claudeCodeParser: PlatformParser = {
       const msg = r.message || r;
       const role = msg.role;
       const createdAt = r.timestamp || r.created_at || new Date().toISOString();
+
+      let modelInfo: ModelInfo | undefined;
+      const rawModel = r.model || msg.model;
+      if (typeof rawModel === 'string' && rawModel.trim()) {
+        modelInfo = {
+          model: rawModel.trim(),
+          provider: 'anthropic',
+        };
+      }
 
       if (r.usage) {
         totalTokens += (r.usage.input_tokens || 0) + (r.usage.output_tokens || 0);
@@ -84,6 +93,7 @@ export const claudeCodeParser: PlatformParser = {
               stepIndex: step++,
               createdAt,
               tools,
+              modelInfo,
             });
           }
 
@@ -95,6 +105,7 @@ export const claudeCodeParser: PlatformParser = {
               stepIndex: step++,
               createdAt,
               content: text,
+              modelInfo,
             });
           }
         } else if (typeof msg.content === 'string') {
@@ -104,6 +115,7 @@ export const claudeCodeParser: PlatformParser = {
             stepIndex: step++,
             createdAt,
             content: msg.content,
+            modelInfo,
           });
         }
       }

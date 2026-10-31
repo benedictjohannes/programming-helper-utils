@@ -8,36 +8,63 @@
       @click="isTurnCollapsed = !isTurnCollapsed"
       class="px-3.5 py-2 flex items-center justify-between bg-[var(--bg-header)] hover:bg-[var(--bg-hover)] cursor-pointer select-none border-b border-[var(--border-color)]"
     >
-      <div class="flex items-center gap-2.5">
+      <div class="flex items-center gap-2.5 min-w-0">
         <ChevronRight
-          class="w-4 h-4 text-[var(--text-muted)] transition-transform duration-150"
+          class="w-4 h-4 text-[var(--text-muted)] shrink-0 transition-transform duration-150"
           :class="{ 'rotate-90': !isTurnCollapsed }"
         />
 
         <!-- Role Badge -->
         <span
-          class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 border border-[var(--border-color)] text-[var(--text-primary)]"
+          class="px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider shrink-0 flex items-center gap-1.5 border border-[var(--border-color)] text-[var(--text-primary)]"
         >
           <component :is="getRoleIcon(item)" class="w-3.5 h-3.5 text-[var(--text-muted)]" />
           <span>{{ getRoleTitle(item) }}</span>
         </span>
 
         <!-- Step index -->
-        <span class="text-xs font-mono text-[var(--text-muted)]">
+        <span class="text-xs font-mono shrink-0 text-[var(--text-muted)]">
           #{{ item.stepIndex }}
         </span>
+
+        <!-- Model Badge (Desktop xl+ only) with instant custom tooltip -->
+        <div
+          v-if="item.modelInfo?.model"
+          @click.stop
+          class="group relative hidden xl:inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-help select-none"
+        >
+          <span class="truncate max-w-[200px]">{{ item.modelInfo.model }}</span>
+
+          <!-- Instant Custom Tooltip -->
+          <div
+            class="pointer-events-none absolute left-0 top-full mt-1.5 hidden group-hover:flex flex-col gap-1 z-30 px-2.5 py-1.5 rounded-lg bg-[var(--bg-card)] border border-[var(--border-color)] shadow-xl text-[11px] font-mono whitespace-nowrap text-[var(--text-primary)]"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-[var(--text-muted)]">Model:</span>
+              <span class="font-semibold">{{ item.modelInfo.model }}</span>
+            </div>
+            <div v-if="item.modelInfo.variant" class="flex items-center gap-2">
+              <span class="text-[var(--text-muted)]">Variant:</span>
+              <span>{{ item.modelInfo.variant }}</span>
+            </div>
+            <div v-if="item.modelInfo.provider" class="flex items-center gap-2">
+              <span class="text-[var(--text-muted)]">Provider:</span>
+              <span>{{ item.modelInfo.provider }}</span>
+            </div>
+          </div>
+        </div>
 
         <!-- Preview snippet when collapsed -->
         <span
           v-if="isTurnCollapsed"
-          class="text-xs text-[var(--text-muted)] truncate max-w-md hidden sm:inline"
+          class="text-xs text-[var(--text-muted)] truncate hidden xl:inline"
         >
           {{ getCollapsedSummary(item) }}
         </span>
       </div>
 
-      <div class="flex items-center gap-3 text-xs text-[var(--text-muted)] font-mono">
-        <div v-if="item.tokens && (item.tokens.input || item.tokens.output)" class="hidden md:flex items-center gap-2">
+      <div class="flex items-center gap-3 text-xs text-[var(--text-muted)] font-mono shrink-0">
+        <div v-if="item.tokens && (item.tokens.input || item.tokens.output)" class="hidden xl:flex items-center gap-2">
           <span v-if="item.tokens.input">in: {{ formatNumber(item.tokens.input) }}</span>
           <span v-if="item.tokens.output">out: {{ formatNumber(item.tokens.output) }}</span>
           <span v-if="item.tokens.cacheRead">cache: {{ formatNumber(item.tokens.cacheRead) }}</span>
@@ -49,6 +76,33 @@
 
     <!-- Turn Body -->
     <div v-show="!isTurnCollapsed" class="p-4 bg-[var(--bg-primary)]">
+      <!-- Below xl Metadata Bar (Ensures no information loss on viewports below xl) -->
+      <div
+        v-if="(item.modelInfo?.model) || (item.tokens && (item.tokens.input || item.tokens.output))"
+        class="flex xl:hidden items-center justify-between flex-wrap gap-2 mb-3 pb-2.5 border-b border-[var(--border-color)] text-xs text-[var(--text-muted)] font-mono"
+      >
+        <!-- Mobile Model Badge & Details -->
+        <div
+          v-if="item.modelInfo?.model"
+          class="mr-auto inline-flex items-center gap-1.5 px-2 py-0.5 rounded border border-[var(--border-color)] bg-[var(--bg-card)] text-[var(--text-secondary)]"
+          :title="getModelTooltip(item.modelInfo)"
+        >
+          <span class="font-medium text-[var(--text-primary)]">{{ item.modelInfo.model }}</span>
+          <span v-if="item.modelInfo.variant" class="text-[10px] px-1 py-0.2 rounded bg-[var(--bg-header)] text-[var(--text-muted)]">
+            {{ item.modelInfo.variant }}
+          </span>
+          <span v-if="item.modelInfo.provider" class="text-[10px] text-[var(--text-muted)]">
+            ({{ item.modelInfo.provider }})
+          </span>
+        </div>
+
+        <!-- Mobile Token Counts (Right-aligned) -->
+        <div v-if="item.tokens && (item.tokens.input || item.tokens.output)" class="ml-auto flex items-center gap-2 text-[11px]">
+          <span v-if="item.tokens.input">in: {{ formatNumber(item.tokens.input) }}</span>
+          <span v-if="item.tokens.output">out: {{ formatNumber(item.tokens.output) }}</span>
+          <span v-if="item.tokens.cacheRead">cache: {{ formatNumber(item.tokens.cacheRead) }}</span>
+        </div>
+      </div>
       <!-- 1. USER INPUT -->
       <div v-if="item.type === 'user_input'">
         <XmlBubbleView ref="xmlBubbleRef" :content="item.content || ''" />
@@ -140,7 +194,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import type { TimelineItem } from '../types';
+import type { TimelineItem, ModelInfo } from '../types';
 import { renderMarkdown, formatDateTime, formatNumber } from '../utils/markdown';
 import ToolCallsList from './ToolCallsList.vue';
 import XmlBubbleView from './XmlBubbleView.vue';
@@ -227,5 +281,14 @@ function getCollapsedSummary(item: TimelineItem): string {
     return item.tools.map(t => t.name).join(', ');
   }
   return '';
+}
+
+function getModelTooltip(info?: ModelInfo): string {
+  if (!info) return '';
+  const parts: string[] = [];
+  if (info.model) parts.push(`Model: ${info.model}`);
+  if (info.variant) parts.push(`Variant: ${info.variant}`);
+  if (info.provider) parts.push(`Provider: ${info.provider}`);
+  return parts.join('\n');
 }
 </script>

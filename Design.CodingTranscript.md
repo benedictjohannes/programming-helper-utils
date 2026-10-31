@@ -53,6 +53,7 @@ The application separates platform-specific schemas from the user interface usin
   - `media`: Array of attached media (`{ mime_type, uri }`).
   - `tools`: Array of `ToolExecutionItem` records.
   - `tokens`: Turn token metrics (`input`, `output`, `cacheRead`).
+  - `modelInfo`: Optional turn model details (`{ model, variant?, provider? }`).
 - `ToolExecutionItem`:
   - `name`: Tool identifier (e.g. `run_command`, `read_file`, `edit_file`).
   - `args`: Arguments object passed to the tool.

@@ -1,4 +1,4 @@
-import type { RawTranscriptRecord, TimelineItem, ToolExecutionItem } from '../types';
+import type { RawTranscriptRecord, TimelineItem, ToolExecutionItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const antigravityParser: PlatformParser = {
@@ -57,12 +57,41 @@ function parseJsonlRecords(rawText: string): RawTranscriptRecord[] {
   return records;
 }
 
+function parseModelFromContent(content?: string): ModelInfo | undefined {
+  if (!content) return undefined;
+  // Match: setting `Model Selection` (from ... )?to <model-name>.
+  const match = content.match(/setting\s+`Model Selection`\s+(?:from\s+.*?\s+)?to\s+([^\n]+?)\.(?:\s|$)/i);
+  if (!match) return undefined;
+
+  const raw = match[1].trim();
+  const variantMatch = raw.match(/^(.*?)\s*\(([^)]+)\)$/);
+  if (variantMatch) {
+    return {
+      model: variantMatch[1].trim(),
+      variant: variantMatch[2].trim(),
+      provider: undefined,
+    };
+  }
+  return {
+    model: raw,
+    variant: undefined,
+    provider: undefined,
+  };
+}
+
 function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[] {
   const timeline: TimelineItem[] = [];
+  let currentModelInfo: ModelInfo | undefined;
   let i = 0;
 
   while (i < records.length) {
     const rec = records[i];
+
+    // Check if user input updates model settings
+    const detectedModel = parseModelFromContent(rec.content);
+    if (detectedModel) {
+      currentModelInfo = detectedModel;
+    }
 
     // Case 1: USER_INPUT
     if (rec.source === 'USER_EXPLICIT' && rec.type === 'USER_INPUT') {
@@ -165,6 +194,7 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
           output: totalOutputTokens,
           cacheRead: totalCacheReadTokens,
         },
+        modelInfo: currentModelInfo ? { ...currentModelInfo } : undefined,
       });
       continue;
     }
@@ -184,6 +214,7 @@ function buildAntigravityTimeline(records: RawTranscriptRecord[]): TimelineItem[
           output: rec.output_tokens,
           cacheRead: rec.cache_read_tokens,
         },
+        modelInfo: currentModelInfo ? { ...currentModelInfo } : undefined,
       });
       i++;
       continue;

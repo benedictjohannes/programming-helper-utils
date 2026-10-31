@@ -1,4 +1,4 @@
-import type { TimelineItem, ToolExecutionItem } from '../types';
+import type { TimelineItem, ToolExecutionItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const openCodeParser: PlatformParser = {
@@ -73,6 +73,24 @@ export const openCodeParser: PlatformParser = {
       const msgType = msg.type || (msg.metadata?.agent ? 'assistant' : 'user');
       const createdAt = formatTimestamp(msg.time?.created);
 
+      // Extract model information
+      const rawModelObj = msg.model || msg.metadata?.model || sessionInfo?.model;
+      let modelInfo: ModelInfo | undefined;
+      if (rawModelObj && typeof rawModelObj === 'object') {
+        const modelName = rawModelObj.id || rawModelObj.modelID || rawModelObj.name;
+        if (modelName) {
+          modelInfo = {
+            model: String(modelName),
+            variant: rawModelObj.variant ? String(rawModelObj.variant) : undefined,
+            provider: rawModelObj.providerID || rawModelObj.provider ? String(rawModelObj.providerID || rawModelObj.provider) : undefined,
+          };
+        }
+      } else if (typeof rawModelObj === 'string' && rawModelObj.trim()) {
+        modelInfo = {
+          model: rawModelObj.trim(),
+        };
+      }
+
       // Accumulate tokens if not already computed from sessionInfo
       if (!sessionInfo?.tokens && msg.tokens) {
         totalTokens += (msg.tokens.input || 0) + (msg.tokens.output || 0) + (msg.tokens.reasoning || 0) + (msg.tokens.cache?.read || 0);
@@ -86,6 +104,7 @@ export const openCodeParser: PlatformParser = {
           stepIndex: step++,
           createdAt,
           content,
+          modelInfo,
         });
       } else if (msgType === 'assistant') {
         const contentItems: any[] = Array.isArray(msg.content) ? msg.content : [];
@@ -134,6 +153,7 @@ export const openCodeParser: PlatformParser = {
             createdAt,
             tools,
             tokens: itemTokens,
+            modelInfo,
           });
         }
 
@@ -159,6 +179,7 @@ export const openCodeParser: PlatformParser = {
             thinking: thinking || undefined,
             status: msg.outcome || undefined,
             tokens: itemTokens,
+            modelInfo,
           });
         }
       } else if (msgType === 'idle') {

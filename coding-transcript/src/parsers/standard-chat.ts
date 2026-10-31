@@ -1,4 +1,4 @@
-import type { TimelineItem } from '../types';
+import type { TimelineItem, ModelInfo } from '../types';
 import type { PlatformParser, ParseResult } from './types';
 
 export const standardChatParser: PlatformParser = {
@@ -58,6 +58,14 @@ export const standardChatParser: PlatformParser = {
       const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
       const createdAt = msg.created_at || new Date().toISOString();
 
+      let modelInfo: ModelInfo | undefined;
+      const rawModel = msg.model || (msg as any).model_name;
+      if (typeof rawModel === 'string' && rawModel.trim()) {
+        modelInfo = {
+          model: rawModel.trim(),
+        };
+      }
+
       if (role === 'user') {
         timeline.push({
           id: `std-user-${step}`,
@@ -73,6 +81,7 @@ export const standardChatParser: PlatformParser = {
           stepIndex: step++,
           createdAt,
           content,
+          modelInfo,
         });
       } else if (role === 'system') {
         timeline.push({
@@ -81,6 +90,7 @@ export const standardChatParser: PlatformParser = {
           stepIndex: step++,
           createdAt,
           content,
+          modelInfo,
         });
       }
     }
