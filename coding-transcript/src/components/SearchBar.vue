@@ -1,5 +1,5 @@
 <template>
-  <div class="sticky top-0 z-30 bg-[var(--bg-primary)]/90 backdrop-blur-md border-b border-[var(--border-color)] px-4 py-2">
+  <div class="sticky top-12 z-30 bg-[var(--bg-primary)]/90 backdrop-blur-md border-b border-[var(--border-color)] px-4 py-2">
     <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center gap-2.5">
       <!-- Search Input -->
       <div class="relative flex-1 w-full">
@@ -7,8 +7,10 @@
           <Search class="w-3.5 h-3.5" />
         </div>
         <input
+          ref="inputRef"
           v-model="query"
           @keydown.enter.prevent="handleEnter"
+          @keydown.esc="emit('close')"
           type="text"
           placeholder="Search prompts, responses, tool inputs & outputs (Enter / Shift+Enter)..."
           class="w-full pl-8 pr-24 py-1.5 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-lg text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:border-[var(--border-subtle)]"
@@ -38,52 +40,62 @@
         </div>
       </div>
 
-      <!-- Scope Toggles -->
-      <div class="flex items-center gap-1 overflow-x-auto w-full sm:w-auto text-[11px] select-none shrink-0">
+      <!-- Scope Toggles & Close Action -->
+      <div class="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end shrink-0">
+        <div class="flex items-center gap-1 overflow-x-auto text-[11px] select-none">
+          <button
+            @click="toggleFilter('userInput')"
+            :class="[
+              'px-2 py-1 rounded-md border transition cursor-pointer',
+              filters.userInput ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            ]"
+          >
+            User
+          </button>
+          <button
+            @click="toggleFilter('modelResponse')"
+            :class="[
+              'px-2 py-1 rounded-md border transition cursor-pointer',
+              filters.modelResponse ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            ]"
+          >
+            Assistant
+          </button>
+          <button
+            @click="toggleFilter('toolInput')"
+            :class="[
+              'px-2 py-1 rounded-md border transition cursor-pointer',
+              filters.toolInput ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            ]"
+          >
+            Tool Input
+          </button>
+          <button
+            @click="toggleFilter('toolOutput')"
+            :class="[
+              'px-2 py-1 rounded-md border transition cursor-pointer',
+              filters.toolOutput ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            ]"
+          >
+            Tool Output
+          </button>
+          <button
+            @click="toggleFilter('systemMessage')"
+            :class="[
+              'px-2 py-1 rounded-md border transition cursor-pointer',
+              filters.systemMessage ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            ]"
+          >
+            System
+          </button>
+        </div>
+
         <button
-          @click="toggleFilter('userInput')"
-          :class="[
-            'px-2 py-1 rounded-md border transition cursor-pointer',
-            filters.userInput ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          ]"
+          @click="emit('close')"
+          class="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition cursor-pointer shrink-0 ml-1"
+          title="Close search bar (Esc)"
         >
-          User
-        </button>
-        <button
-          @click="toggleFilter('modelResponse')"
-          :class="[
-            'px-2 py-1 rounded-md border transition cursor-pointer',
-            filters.modelResponse ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          ]"
-        >
-          Assistant
-        </button>
-        <button
-          @click="toggleFilter('toolInput')"
-          :class="[
-            'px-2 py-1 rounded-md border transition cursor-pointer',
-            filters.toolInput ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          ]"
-        >
-          Tool Input
-        </button>
-        <button
-          @click="toggleFilter('toolOutput')"
-          :class="[
-            'px-2 py-1 rounded-md border transition cursor-pointer',
-            filters.toolOutput ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          ]"
-        >
-          Tool Output
-        </button>
-        <button
-          @click="toggleFilter('systemMessage')"
-          :class="[
-            'px-2 py-1 rounded-md border transition cursor-pointer',
-            filters.systemMessage ? 'border-[var(--text-primary)] text-[var(--text-primary)] font-medium' : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-primary)]'
-          ]"
-        >
-          System
+          <X class="w-3.5 h-3.5" />
         </button>
       </div>
     </div>
@@ -91,8 +103,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { Search, ChevronUp, ChevronDown } from 'lucide-vue-next';
+import { computed, ref, onMounted } from 'vue';
+import { Search, ChevronUp, ChevronDown, X } from 'lucide-vue-next';
 import type { FilterOptions } from '../utils/search';
 
 const props = defineProps<{
@@ -107,7 +119,14 @@ const emit = defineEmits<{
   (e: 'update:filters', val: FilterOptions): void;
   (e: 'prev'): void;
   (e: 'next'): void;
+  (e: 'close'): void;
 }>();
+
+const inputRef = ref<HTMLInputElement | null>(null);
+
+onMounted(() => {
+  inputRef.value?.focus();
+});
 
 const query = computed({
   get: () => props.modelValue,
@@ -128,4 +147,8 @@ function handleEnter(e: KeyboardEvent) {
     emit('next');
   }
 }
+
+defineExpose({
+  focus: () => inputRef.value?.focus(),
+});
 </script>

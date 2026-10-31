@@ -94,15 +94,17 @@ When a file is loaded with platform set to `auto`:
     - `main.ts`: Application entry point; mounts Vue and imports CSS.
     - `style.css`: Theme CSS custom properties (`--bg-primary`, `--border-color`, etc.), Prism syntax styling, and Markdown prose rules.
     - `types.ts`: Core data models (`TimelineItem`, `ToolCallItem`, `SearchMatch`).
-    - `App.vue`: Main layout container; manages active transcript, theme switching, global expand/collapse orchestration, and search coordination.
+    - `App.vue`: Main layout container; manages TopNavBar, mutually exclusive secondary bars (`secondaryBarShown`), active transcript, theme switching, global expand/collapse orchestration, and search/filter coordination.
     - `components/`: UI components.
       - `UploadView.vue`: Initial landing view with tabs for drag-and-drop file upload vs raw text pasting, plus manual platform selector.
       - `ExportGuideView.vue`: In-app export instructions guide for verified platforms (OpenCode and Antigravity) with copyable prompts and skill templates.
-      - `TimelineTurnCard.vue`: Renders an individual conversation turn card with collapsible header, token stats, and body routing.
+      - `TimelineTurnCard.vue`: Renders an individual conversation turn card with collapsible header, token stats, and selective display filtering for reasoning, assistant body, and tool calls.
       - `ReasoningBubble.vue`: Collapsible reasoning/thinking block with markdown support, character count badge, and clipboard copy.
       - `XmlBubbleView.vue`: Parses and renders XML-like tags (e.g. `<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, `<SKILL>`) as collapsible blocks.
       - `ToolCallsList.vue`: Batched tool calls with side-by-side diff previews for file edits, terminal-style command bars, and expandable stdout.
-      - `SearchBar.vue`: Sticky top search bar with match counter, keyboard navigation (`Enter` / `Shift+Enter`), and scope filters.
+      - `SearchBar.vue`: Sticky secondary bar with query input, match counter, keyboard navigation (`Enter` / `Shift+Enter`), search scope filters (`userInput`, `modelResponse`, `toolInput`, `toolOutput`, `systemMessage`), and dismissal via `Esc` or close button.
+      - `FilterBar.vue`: Sticky secondary bar with selective display visibility toggles (`User`, `Assistant`, `Tools`, `Reasoning`, `System`), live turn/call counts, quick presets (`Chat only`, `Tools only`, `All`), and close button.
+      - `StatsBar.vue`: Sticky secondary bar rendering session statistics (`Records`, `Turns`, and token breakdown: `In`, `Out`, `Cached`, `Total`) with monospace typography and close button.
     - `assets/`: Static asset templates and text documents.
       - `antigravity-export-skill.md`: Raw Markdown template for Antigravity's custom export-transcript skill.
     - `parsers/`: Platform adapter modules.
@@ -137,6 +139,25 @@ When a file is loaded with platform set to `auto`:
   - Dark mode: Background `#000000`, card surfaces `#050505`, headers `#0d0d0d`.
   - Light mode: Background `#ffffff`, card surfaces `#ffffff`, headers `#f8fafc`.
 - **Border-Driven Contrast**: No high-intensity glow or heavy colored backgrounds. Cards and badges use borders (`#262626` / `#e2e8f0`) and subtle shadows.
+- **TopNavBar & Mutually Exclusive Secondary Bars**:
+  - **TopNavBar**:
+    - **Responsive Left Branding**: On `< sm` viewports, the `⚡` badge and `"Transcript Viewer"` title collapse, preserving full space for the truncated filename and action buttons.
+    - **High-Density Icon Action Strip**: Right-aligned icon buttons equipped with complete tooltips:
+      - Collapse all (`FoldVertical`)
+      - Expand all (`UnfoldVertical`)
+      - Search (`Search`): Toggles `SearchBar`; auto-focuses search input; global `Ctrl+F` / `Cmd+F` shortcut.
+      - Filter (`Filter`): Toggles `FilterBar`; shows an amber dot indicator when non-default visibility filters are active.
+      - Stats (`BarChart3`): Toggles `StatsBar`; default active panel on desktop.
+      - Close (`X`): Closes session / unloads transcript back to `UploadView`.
+      - Theme switcher (`Sun` / `Moon`): Toggles Dark/Light mode; always trailing.
+  - **Mutually Exclusive Secondary Bar (`secondaryBarShown`)**:
+    - At most one panel (`'search' | 'filter' | 'stats' | null`) renders sticky beneath the header (`top-12 z-30`).
+    - Clicking the active panel's icon button or pressing `Esc` dismisses it (`null`), enabling a pure, distraction-free reading mode.
+- **Selective Display Filtering (`FilterBar.vue`)**:
+  - Distinct from SearchBar scope filters: controls actual DOM rendering.
+  - Granular toggling of `User`, `Assistant`, `Tools`, `Reasoning`, and `System` elements with live element counts.
+  - Preset shortcuts: `Chat only` (hides tools & reasoning), `Tools only`, and `All`.
+  - Automatic turn suppression: if all sub-elements of a turn are filtered out, the turn card itself is hidden. If all turns are hidden, an empty state with a "Reset filters" button is shown.
 - **Deep Hierarchical Collapsibility**:
   - Turn level: Entire turns collapse into a single-line summary with step number and timestamp.
   - Message level: XML tag blocks collapse into single-line pills showing tag name, truncated text preview, and character count.
@@ -147,11 +168,11 @@ When a file is loaded with platform set to `auto`:
 
 ## Verification & Testing
 
-The test suite runs with native Bun test (`bun test`), executing 119 unit and component tests across 12 test suites:
+The test suite runs with native Bun test (`bun test`), executing 131 unit and component tests across 14 test suites:
 - **Environment & Preload** (`tests/setup.ts`): Emulates browser DOM via `happy-dom` and compiles `.vue` SFCs on the fly using `@vue/compiler-sfc` via a custom Bun plugin.
 - **Parser & Invariant Tests** (`tests/parsers/`):
   - `audigma.antigravity.jsonl`: Verifies tool-result pairing, token summation, XML bubble generation, and contiguous step indexing.
   - `audigma.opencode.json`: Verifies parsing of multi-part reasoning blocks, tool invocations, and text blocks.
   - Auto-detection: Positive detection, collision resistance, and graceful fallback on malformed input.
-- **Component Tests** (`tests/components/`): Verifies mounting, user interactions, search navigation with tool expansion, theme toggling, XML collapse reactivity, and `ReasoningBubble` states.
+- **Component Tests** (`tests/components/`): Verifies mounting, user interactions, search navigation with tool expansion, theme toggling, XML collapse reactivity, `ReasoningBubble` states, `FilterBar` presets/toggling, `StatsBar` token accounting, and `App.vue` secondary bar exclusivity.
 - **Build Verification** (`tests/build.test.ts`): Validates that `vite build` produces a fully self-contained `dist/index.html` without external network scripts or styles.

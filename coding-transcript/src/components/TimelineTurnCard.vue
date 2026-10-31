@@ -124,39 +124,43 @@
       <!-- 2. MODEL RESPONSE -->
       <div v-else-if="item.type === 'model_response'">
         <!-- Thinking dropdown if present -->
-        <ReasoningBubble v-if="item.thinking" :content="item.thinking" class="mb-3" />
+        <ReasoningBubble v-if="item.thinking && filters.reasoning" :content="item.thinking" class="mb-3" />
 
-        <XmlBubbleView ref="xmlBubbleRef" v-if="hasXmlTags(item.content || '')" :content="item.content || ''" />
-        <div v-else class="markdown-body" v-html="renderMarkdown(item.content || '')"></div>
+        <template v-if="filters.assistant">
+          <XmlBubbleView ref="xmlBubbleRef" v-if="hasXmlTags(item.content || '')" :content="item.content || ''" />
+          <div v-else class="markdown-body" v-html="renderMarkdown(item.content || '')"></div>
+        </template>
       </div>
 
       <!-- 3. TOOL CALLS -->
       <div v-else-if="item.type === 'tool_call' && item.tools">
         <!-- Thinking dropdown if present on tool calls -->
-        <ReasoningBubble v-if="item.thinking" :content="item.thinking" class="mb-3" />
+        <ReasoningBubble v-if="item.thinking && filters.reasoning" :content="item.thinking" class="mb-3" />
 
-        <!-- Tool Call group header / toggle -->
-        <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--border-color)]">
-          <div class="text-xs text-[var(--text-muted)] font-medium">
-            {{ item.tools.length }} {{ item.tools.length === 1 ? 'tool call' : 'tool calls' }}
+        <template v-if="filters.tool">
+          <!-- Tool Call group header / toggle -->
+          <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-[var(--border-color)]">
+            <div class="text-xs text-[var(--text-muted)] font-medium">
+              {{ item.tools.length }} {{ item.tools.length === 1 ? 'tool call' : 'tool calls' }}
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                @click="toggleAllTools(true)"
+                class="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                Expand all
+              </button>
+              <span class="text-[var(--text-muted)] text-[10px]">•</span>
+              <button
+                @click="toggleAllTools(false)"
+                class="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                Collapse all
+              </button>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <button
-              @click="toggleAllTools(true)"
-              class="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            >
-              Expand all
-            </button>
-            <span class="text-[var(--text-muted)] text-[10px]">•</span>
-            <button
-              @click="toggleAllTools(false)"
-              class="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            >
-              Collapse all
-            </button>
-          </div>
-        </div>
-        <ToolCallsList ref="toolListRef" :tools="item.tools" />
+          <ToolCallsList ref="toolListRef" :tools="item.tools" />
+        </template>
       </div>
 
       <!-- 4. SYSTEM MESSAGE -->
@@ -171,6 +175,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { TimelineItem, ModelInfo } from '../types';
+import type { VisibilityFilters } from './FilterBar.vue';
 import { renderMarkdown, formatDateTime, formatNumber } from '../utils/markdown';
 import ToolCallsList from './ToolCallsList.vue';
 import XmlBubbleView from './XmlBubbleView.vue';
@@ -183,9 +188,21 @@ import {
   ChevronRight
 } from 'lucide-vue-next';
 
-const props = defineProps<{
-  item: TimelineItem;
-}>();
+const props = withDefaults(
+  defineProps<{
+    item: TimelineItem;
+    filters?: VisibilityFilters;
+  }>(),
+  {
+    filters: () => ({
+      user: true,
+      assistant: true,
+      tool: true,
+      reasoning: true,
+      system: true,
+    }),
+  }
+);
 
 const isTurnCollapsed = ref(false);
 const toolListRef = ref<any>(null);
