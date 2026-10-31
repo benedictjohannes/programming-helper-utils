@@ -3,7 +3,7 @@
 [![PyPI version](https://img.shields.io/pypi/v/skim-python.svg)](https://pypi.org/project/skim-python/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
 
-A fast, zero-dependency, AST-resilient Python outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
+A fast, AST-resilient Python outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
 > Part of the [`skim-*` family - check out the complete suite](https://github.com/benedictjohannes/programming-helper-utils). Conforms to the [`skim-*` Family Design Specification](https://github.com/benedictjohannes/programming-helper-utils/blob/master/Design.Skim.md).
 
@@ -18,7 +18,7 @@ When AI coding assistants (such as Claude, Gemini, ChatGPT, or Cursor) operate o
 3. **Repeated File Reading Loops**: Agents often read file A, find a call to a method on class B in file B, read all of file B, and repeat—quickly exhausting tool calls and context windows.
 4. **Syntax Tolerance During Active Edits**: Codebases being actively refactored or edited often contain temporary syntax errors. Traditional strict parsers crash completely, leaving the agent unable to inspect surrounding structures.
 
-`skim-py` solves this by giving agents (and developers) a pair of surgical tools powered by Python's built-in `ast` and `tokenize` modules (zero third-party dependencies):
+`skim-py` solves this by giving agents (and developers) a pair of surgical tools powered by a two-tier hybrid parsing architecture (CPython `ast` fast path + lazy `parso` CST error recovery):
 - **`glance`**: Instant, high-density outlines of declarations, signatures, dataclass/Pydantic/enum fields, and line spans—with test files and in-file test suites filtered out by default.
 - **`block`**: Verbatim code retrieval for an exact class, function, or qualified member (`Class.method`) with line gutters or raw code ready for editing.
 
@@ -44,8 +44,8 @@ flowchart TD
 
 ## Features
 
-- **Zero Third-Party Dependencies**: Pure Python standard library implementation using `ast` and `tokenize`.
-- **Fast Startup & Minimal Overhead**: Launches instantaneously without waiting for heavy virtual environments or complex toolchains.
+- **Hybrid Two-Tier Parsing Architecture**: Sub-millisecond sweeps via CPython `ast.parse` on clean code with zero third-party overhead, seamlessly backed by lazy `parso` CST recovery.
+- **Instant CLI Startup**: Third-party dependencies are lazily loaded only when syntax errors occur, preserving zero-overhead instant CLI response across valid code trees.
 - **Test-Blind by Default**:
   - Automatically excludes `test_*.py`, `*_test.py`, `conftest.py`, and test directories (`tests/`, `test/`, `testing/`, `__tests__/`) during traversals unless `-t` / `--include-tests` is specified.
   - Automatically detects in-file test classes (`Test*`, `unittest.TestCase`) and test functions (`test_*`) and filters them out of outlines and target lookups, reporting skipped line ranges (`[tests skipped: 8..9, 16..17, 20..25]`).
@@ -53,9 +53,9 @@ flowchart TD
 - **Decorator & Signature Preservation**: Includes full decorator chains (`@classmethod`, `@property`, `@field_validator`) and return annotations in both outlines and block extractions.
 - **Exact-Case Precedence with Case-Insensitive Fallback**: Matches `basemodel.model_dump` to `BaseModel.model_dump` while prioritizing exact case if both co-exist.
 - **Clear Ambiguity Diagnostics**: If a target matches multiple candidates, `skim-py` exits with code `3` and presents numbered candidate locations with line spans and disambiguation tips.
-- **Syntax Error Tolerance & AST Recovery**:
-  - Reports syntax notices cleanly under the file header without crashing, pinpointing the error line and message.
-  - Automatically recovers using a bounded iterative line-masking fallback (up to 100 iterations), isolating broken lines while preserving exact 1-to-1 line offsets so surrounding valid classes, methods, and functions remain fully outlined and extractable.
+- **Syntax Error Tolerance & CST Recovery**:
+  - Reports syntax notices cleanly under the file header without crashing, pinpointing the error line and message with paired CPython and Parso diagnostics.
+  - Resilient concrete syntax tree (CST) recovery salvages surviving functions, classes, and methods around broken code without crashing or altering line offsets.
 
 ---
 
@@ -141,10 +141,10 @@ Options:
 #### Example 1: Basic Structural Outline of a File
 
 ```bash
-skim-py glance testingRepositories/pydantic/pydantic/errors.py
+skim-py glance pydantic/errors.py
 ```
 ```text
-=== testingRepositories/pydantic/pydantic/errors.py (185 lines) ===
+=== pydantic/errors.py (185 lines) ===
 
 Outline:
   L15-L23      var __all__
@@ -170,10 +170,10 @@ Outline:
 #### Example 2: Signatures and Imports (`-s -u`)
 
 ```bash
-skim-py glance testingRepositories/pydantic/pydantic/errors.py -s -u
+skim-py glance pydantic/errors.py -s -u
 ```
 ```text
-=== testingRepositories/pydantic/pydantic/errors.py (185 lines) ===
+=== pydantic/errors.py (185 lines) ===
 
 Imports:
   from __future__ import annotations as _annotations
@@ -208,10 +208,10 @@ Outline:
 #### Example 3: Expand Details and Class Attributes (`-s -d`)
 
 ```bash
-skim-py glance testingRepositories/pydantic/pydantic/errors.py -s -d
+skim-py glance pydantic/errors.py -s -d
 ```
 ```text
-=== testingRepositories/pydantic/pydantic/errors.py (185 lines) ===
+=== pydantic/errors.py (185 lines) ===
 
 Outline:
   L15-L23      __all__ = ('PydanticUserError', 'PydanticUndefinedAnnotation', 'PydanticImportError', 'PydanticSchemaGenerationError', 'PydanticInvalidForJsonSchema', 'PydanticForbiddenQualifier', 'PydanticErrorCodes')
@@ -238,10 +238,10 @@ Outline:
 #### Example 4: Filter by Keyword across Declarations (`-f <keyword>`)
 
 ```bash
-skim-py glance testingRepositories/pydantic/pydantic/errors.py -s -f "from_name_error"
+skim-py glance pydantic/errors.py -s -f "from_name_error"
 ```
 ```text
-=== testingRepositories/pydantic/pydantic/errors.py (185 lines) ===
+=== pydantic/errors.py (185 lines) ===
 
 Outline:
   L105-L127    class PydanticUndefinedAnnotation(PydanticErrorMixin, NameError)
@@ -288,10 +288,10 @@ Outline:
 Similarly, test files (`test_*.py`, `tests/`) are excluded by default during directory traversals and only included when `-t` is passed:
 
 ```bash
-skim-py glance testingRepositories/pydantic/tests/test_warnings.py -t
+skim-py glance tests/test_warnings.py -t
 ```
 ```text
-=== testingRepositories/pydantic/tests/test_warnings.py (41 lines) [test] ===
+=== tests/test_warnings.py (41 lines) [test] ===
 
 Outline:
   L5-L10       def test_pydantic_deprecation_warning()
@@ -303,14 +303,13 @@ Outline:
 
 #### Example 6: Syntax Error Tolerance & Recovery
 
-If a file has a syntax error during active editing or refactoring, `skim-py` does not crash; it pinpoints syntax errors directly under the file header and automatically recovers to outline valid surrounding declarations:
+If a file has a syntax error during active editing or refactoring, `skim-py` does not crash; it pinpoints syntax errors directly under the file header and automatically recovers via CST to outline valid surrounding declarations:
 
 ```bash
 skim-py glance tests/fixtures/syntax_error.py -s
 ```
 ```text
 === tests/fixtures/syntax_error.py (12 lines) [! 1 syntax error] ===
-# parsed with 1 line masked (L7)
   Syntax Notice: L7: invalid syntax
 
 Outline:
@@ -319,25 +318,23 @@ Outline:
   L11-L12      def valid_after()
 ```
 
-Surrounding valid functions remain fully extractable via `block` (masking warnings are surfaced via stderr):
+Surrounding valid functions remain fully extractable via `block`:
 
 ```bash
 skim-py block tests/fixtures/syntax_error.py valid_after
 ```
 ```text
-tests/fixtures/syntax_error.py: # parsed with 1 line masked (L7)
 === tests/fixtures/syntax_error.py (L11-L12) ===
    11 | def valid_after():
    12 |     return 2
 ```
 
-And if an extracted block contains a syntax error within its line span, the warning is surfaced directly above the block:
+And if an extracted block contains a syntax error within its line span, the notice is surfaced directly above the block:
 
 ```bash
 skim-py block tests/fixtures/syntax_error.py broken_function
 ```
 ```text
-tests/fixtures/syntax_error.py: # parsed with 1 line masked (L7)
 === tests/fixtures/syntax_error.py (L5-L8) [! 1 syntax error] ===
   Syntax Notice: L7: invalid syntax
     5 | def broken_function():
@@ -346,19 +343,18 @@ tests/fixtures/syntax_error.py: # parsed with 1 line masked (L7)
     8 |     return x
 ```
 
-For cascade-prone mid-edit states (such as an unclosed `def foo(x,` header or unclosed bracket structure), `skim-py` masks the entire broken block in one step, marks the masked line range in the notice, and salvages the broken declaration in the outline so it remains targetable by `block`:
+For cascade-prone mid-edit states (such as an unclosed `def foo(x,` header or unclosed bracket structure), `skim-py` captures the CPython syntax notice, preserves surrounding declarations, and marks the broken declaration in the outline so it remains targetable by `block`:
 
 ```bash
 skim-py glance tests/fixtures/syntax_error_cascade.py -s
 ```
 ```text
 === tests/fixtures/syntax_error_cascade.py (11 lines) [! 1 syntax error] ===
-# parsed with 3 lines masked (L5, L6, L7)
-  Syntax Notice: L5: '(' was never closed (L5-L7 masked)
+  Syntax Notice: L5: '(' was never closed
 
 Outline:
   L1-L2        def valid_before()
-  L5-L7        def broken_header [syntax error]
+  L5-L7        def broken_header() [syntax error]
   L10-L11      def valid_after()
 ```
 
@@ -366,9 +362,8 @@ Outline:
 skim-py block tests/fixtures/syntax_error_cascade.py broken_header
 ```
 ```text
-tests/fixtures/syntax_error_cascade.py: # parsed with 3 lines masked (L5, L6, L7)
 === tests/fixtures/syntax_error_cascade.py (L5-L7) [! 1 syntax error] ===
-  Syntax Notice: L5: '(' was never closed (L5-L7 masked)
+  Syntax Notice: L5: '(' was never closed
     5 | def broken_header(x,
     6 |     y = 1
     7 |     return y
@@ -396,10 +391,10 @@ Options:
 #### Example 7: Extract Class Definition
 
 ```bash
-skim-py block testingRepositories/pydantic/pydantic/warnings.py PydanticDeprecationWarning
+skim-py block pydantic/warnings.py PydanticDeprecationWarning
 ```
 ```text
-=== testingRepositories/pydantic/pydantic/warnings.py (L23-L54) ===
+=== pydantic/warnings.py (L23-L54) ===
    23 | class PydanticDeprecationWarning(DeprecationWarning):
    24 |     """A Pydantic specific deprecation warning.
    25 | 
@@ -437,10 +432,10 @@ skim-py block testingRepositories/pydantic/pydantic/warnings.py PydanticDeprecat
 #### Example 8: Extract Qualified Method (`Class.method`)
 
 ```bash
-skim-py block testingRepositories/pydantic/pydantic/errors.py PydanticUndefinedAnnotation.from_name_error
+skim-py block pydantic/errors.py PydanticUndefinedAnnotation.from_name_error
 ```
 ```text
-=== testingRepositories/pydantic/pydantic/errors.py (L117-L127) ===
+=== pydantic/errors.py (L117-L127) ===
   117 |     @classmethod
   118 |     def from_name_error(cls, name_error: NameError) -> Self:
   119 |         """Convert a `NameError` to a `PydanticUndefinedAnnotation` error.
@@ -457,13 +452,13 @@ skim-py block testingRepositories/pydantic/pydantic/errors.py PydanticUndefinedA
 Case-insensitive target matching is also supported:
 
 ```bash
-skim-py block testingRepositories/pydantic/pydantic/errors.py pydanticundefinedannotation.from_name_error
+skim-py block pydantic/errors.py pydanticundefinedannotation.from_name_error
 ```
 
 #### Example 9: Raw Output for Seamless Patching (`--raw`)
 
 ```bash
-skim-py block testingRepositories/pydantic/pydantic/errors.py PydanticUndefinedAnnotation.from_name_error --raw
+skim-py block pydantic/errors.py PydanticUndefinedAnnotation.from_name_error --raw
 ```
 ```python
     @classmethod
@@ -484,10 +479,10 @@ skim-py block testingRepositories/pydantic/pydantic/errors.py PydanticUndefinedA
 When multiple candidates match an ambiguous target name, `skim-py` exits with status `3` and provides candidates and resolution tips:
 
 ```bash
-skim-py block testingRepositories/pydantic/pydantic/errors.py __init__
+skim-py block pydantic/errors.py __init__
 ```
 ```text
-Error: ambiguous target '__init__' matched 6 candidates in testingRepositories/pydantic/pydantic/errors.py:
+Error: ambiguous target '__init__' matched 6 candidates in pydantic/errors.py:
   1) L90-L92    method PydanticErrorMixin.__init__
   2) L113-L115  method PydanticUndefinedAnnotation.__init__
   3) L137-L138  method PydanticImportError.__init__
@@ -517,9 +512,13 @@ Tip: Disambiguate with Class.method (e.g. BaseModel.model_dump) or read line ran
 
 Unit tests and edge-case fixtures are located in [`tests/`](tests/).
 
-Run test suite via `pytest`:
+Run test suite via `unittest`:
 ```bash
-pytest tests/
+python3 -m unittest discover -s tests
+```
+Or via `uv`:
+```bash
+uv run python -m unittest discover -s tests
 ```
 
 ---

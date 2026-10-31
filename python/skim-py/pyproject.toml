@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "skim-python"
-version = "0.0.3"
+version = "0.0.4"
 description = "Language-aware, AST-resilient outline and verbatim code extractor for Python tailored for AI agents"
 readme = "README.md"
 license = "MIT"

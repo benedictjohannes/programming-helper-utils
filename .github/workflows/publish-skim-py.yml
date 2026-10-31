@@ -27,13 +27,14 @@ jobs:
           python-version: '3.12'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v5
         with:
+          enable-cache: true
           version: "latest"
 
       - name: Run Unit Tests
         run: |
-          PYTHONPATH=src python -m unittest discover -s tests
+          uv run python -m unittest discover -s tests
 
       - name: Build binary wheel and sdist
         run: |
