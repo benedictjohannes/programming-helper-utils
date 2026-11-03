@@ -1,0 +1,26 @@
+---
+interface PageProps {
+  title: string;
+}
+
+const { title } = Astro.props as PageProps;
+---
+
+<head>
+  <meta charset="utf-8" />
+  <title>{title}</title>
+</head>
+
+<script is:inline>
+  console.log('Analytics initialized');
+</script>
+
+<body>
+  <main>
+    <h1>Welcome to {title}</h1>
+  </main>
+</body>
+
+<style>
+  h1 { color: #333; }
+</style>

@@ -46,9 +46,10 @@ flowchart TD
 
 - **Official TypeScript Compiler API**: Uses TypeScript 6 (`ts.createSourceFile`) for faithful syntactic parsing of modern syntax, JSX/TSX, decorators, generics, namespaces, and ambient declarations.
 - **Error-Resilient Parsing**: Parses incomplete or syntactically invalid code gracefully, displaying in-flight syntax notices without crashing or skipping surrounding valid declarations.
-- **Multi-Extension Support**: `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`.
+- **Multi-Extension & SFC Support**: `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, `.cjs`, plus Single File Components: Vue (`.vue`), Svelte (`.svelte`), and Astro (`.astro`).
+- **SFC Single Virtual File & Verbatim Section Outlines**: Uses whitespace masking to preserve 1:1 byte and line coordinate fidelity. Outlines `<script>`, `<template>`, `markup` (or `markup:1`, `markup:2` when split around scripts/styles), `<style>`, and `---` frontmatter blocks with 2-space indented inner script declarations. Supports universal semantic section targeting (`template`, `markup`, `html`, `---`, `script`, `style`) and indexed segments (`markup:1`, `markup:2`).
 - **Test-Blind by Default**:
-  - Automatically excludes `*.test.ts`, `*.spec.ts`, `*.test.tsx`, `*.spec.tsx`, and `__tests__/` directories during traversals unless `-t` / `--include-tests` is specified.
+  - Automatically excludes test files (`*.test.ts`, `*.spec.ts`, `*.test.vue`, `*.spec.svelte`, etc.) and `__tests__/` directories during traversals unless `-t` / `--include-tests` is specified.
   - Automatically detects in-file test suites (`describe()`, `it()`, `test()`, `suite()`) and filters them out of outlines and target lookups, reporting skipped line ranges (`[tests skipped: 5..13, 15..17]`).
 - **Language-Idiomatic Qualified Targets**: Target methods via `Class.method`, constructors via `Class.constructor`, enum members via `Enum.member`, or standalone functions and types.
 - **Exact-Case Precedence with Case-Insensitive Fallback**: Matches `parsestatus.dirty` to `ParseStatus.dirty` while prioritizing exact case if both `type Config` and `const config` coexist.
@@ -95,7 +96,7 @@ ln -sf "$(pwd)/skim-ts" ~/.local/bin/skim-ts
 ## CLI Reference & Concrete Examples
 
 > [!NOTE]
-> Examples below are authentic outputs produced by running `skim-ts` against the [`colinhacks/zod`](https://github.com/colinhacks/zod) repository and local fixtures.
+> Examples 1-6 below are authentic outputs produced by running `skim-ts` against the [`colinhacks/zod`](https://github.com/colinhacks/zod) repository and local fixtures.
 
 ```text
 Usage:
@@ -280,6 +281,37 @@ Outline:
   L1-L3        export interface WorkingConfig
   L5-L8        export function brokenFunction()
   L10-L12      export interface AnotherValidInterface
+```
+
+#### Example 7: Single File Components (Vue, Svelte, Astro)
+
+Single File Components (`.vue`, `.svelte`, `.astro`) outline SFC root containers at Depth 0 with verbatim tags, and indent inner script declarations naturally at Depth 1:
+
+```bash
+skim-ts glance src/components/UserProfile.vue -s
+```
+```text
+=== src/components/UserProfile.vue (43 lines) ===
+
+Outline:
+  L1-L4        <script lang="ts">
+  L2-L2          export const DEFAULT_ROLE = 'guest'
+  L6-L23       <script setup lang="ts">
+  L7-L9          interface Props
+  L11-L16        class FormValidator
+  L12-L12          method constructor(public config: Props)
+  L13-L15          method validate(): boolean
+  L20-L22        function submitForm(): void
+  L25-L30      <template>
+  L32-L36      <style scoped>
+  L38-L42      <style module>
+```
+
+SFC section targets can be extracted directly with `block` (e.g., `template`, `---`, `frontmatter`, or disambiguated `<style scoped>` / `script:setup`):
+
+```bash
+skim-ts block src/components/UserProfile.vue template
+skim-ts block src/pages/index.astro frontmatter
 ```
 
 ---

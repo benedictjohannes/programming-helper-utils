@@ -1,0 +1,29 @@
+---
+interface PageProps {
+  title: string;
+}
+
+const { title } = Astro.props as PageProps;
+const response = await fetch('https://example.com/api');
+const data = await response.json();
+
+function formatTitle(t: string): string {
+  return t.toUpperCase();
+}
+---
+
+<div class="page-container">
+  <h1>{formatTitle(title)}</h1>
+  <p>{data.message}</p>
+</div>
+
+<script>
+  console.log('Client-side script initialized');
+</script>
+
+<style is:global>
+.page-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+</style>

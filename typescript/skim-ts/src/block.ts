@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parseSourceFile } from './parser';
+import { isSfcFile, parseSfcFile } from './sfc/index';
 import { getQualifiedName, type BlockOptions, type OutlineItem } from './types';
 
 function collectAllItems(items: OutlineItem[]): OutlineItem[] {
@@ -31,9 +32,9 @@ export function runBlock(options: BlockOptions): void {
     process.exit(1);
   }
 
-  const parsed = parseSourceFile(filePath, content, {
-    includeTests: Boolean(options.includeTests),
-  });
+  const parsed = isSfcFile(filePath)
+    ? parseSfcFile(filePath, content, { includeTests: Boolean(options.includeTests) })
+    : parseSourceFile(filePath, content, { includeTests: Boolean(options.includeTests) });
   const allItems = collectAllItems(parsed.items);
 
   let matches: OutlineItem[] = [];
@@ -72,26 +73,68 @@ export function runBlock(options: BlockOptions): void {
       }
     }
   } else {
-    // Standalone identifier
-    // Tier 1: Exact match on name
-    const exactMatches = allItems.filter((it) => it.name === target);
+    // Standalone identifier or section keyword
+    const targetLower = target.toLowerCase();
+    const indexedMarkupMatch = targetLower.match(/^(?:template|markup|html):(\d+)$/);
+    const isSectionKeyword =
+      target === '---' ||
+      targetLower === 'frontmatter' ||
+      targetLower === 'script' ||
+      targetLower === 'style' ||
+      targetLower === 'template' ||
+      targetLower === 'markup' ||
+      targetLower === 'html' ||
+      Boolean(indexedMarkupMatch);
 
-    if (exactMatches.length > 0) {
-      matches = exactMatches;
-    } else {
-      // Tier 2: Case-insensitive match on name
-      const targetLower = target.toLowerCase();
-      const caseMatches = allItems.filter((it) => it.name.toLowerCase() === targetLower);
+    if (isSectionKeyword) {
+      if (targetLower === 'script') {
+        matches = allItems.filter((it) => it.isSfcBlock && it.kind === 'script');
+      } else if (targetLower === 'style') {
+        matches = allItems.filter((it) => it.isSfcBlock && it.kind === 'style');
+      } else if (
+        targetLower === 'template' ||
+        targetLower === 'markup' ||
+        targetLower === 'html'
+      ) {
+        matches = allItems.filter((it) => it.isSfcBlock && it.kind === 'template');
+      } else if (indexedMarkupMatch) {
+        const idx = parseInt(indexedMarkupMatch[1]!, 10);
+        const templateItems = allItems.filter((it) => it.isSfcBlock && it.kind === 'template');
+        if (idx >= 1 && idx <= templateItems.length) {
+          matches = [templateItems[idx - 1]!];
+        }
+      } else if (target === '---' || targetLower === 'frontmatter') {
+        matches = allItems.filter((it) => it.isSfcBlock && it.kind === 'frontmatter');
+      }
 
-      if (caseMatches.length > 0) {
-        matches = caseMatches;
+      const symbolMatches = allItems.filter(
+        (it) => !it.isSfcBlock && it.name.toLowerCase() === targetLower
+      );
+      if (symbolMatches.length > 0) {
+        matches.push(...symbolMatches);
+      }
+    }
+
+    if (matches.length === 0) {
+      // Tier 1: Exact match on name
+      const exactMatches = allItems.filter((it) => it.name === target);
+
+      if (exactMatches.length > 0) {
+        matches = exactMatches;
       } else {
-        // Tier 3: Case-insensitive substring match
-        matches = allItems.filter(
-          (it) =>
-            it.name.toLowerCase().includes(targetLower) ||
-            it.rawHeader.toLowerCase().includes(targetLower)
-        );
+        // Tier 2: Case-insensitive match on name
+        const caseMatches = allItems.filter((it) => it.name.toLowerCase() === targetLower);
+
+        if (caseMatches.length > 0) {
+          matches = caseMatches;
+        } else {
+          // Tier 3: Case-insensitive substring match
+          matches = allItems.filter(
+            (it) =>
+              it.name.toLowerCase().includes(targetLower) ||
+              it.rawHeader.toLowerCase().includes(targetLower)
+          );
+        }
       }
     }
   }
@@ -110,11 +153,32 @@ export function runBlock(options: BlockOptions): void {
     matches.forEach((m, idx) => {
       const span = `L${m.startLine}-L${m.endLine}`;
       const qName = getQualifiedName(m);
-      process.stderr.write(`  ${idx + 1}) ${span.padEnd(10, ' ')} ${m.kind} ${qName}\n`);
+      const label = m.isSfcBlock ? m.rawHeader : `${m.kind} ${qName}`;
+      process.stderr.write(`  ${idx + 1}) ${span.padEnd(10, ' ')} ${label}\n`);
     });
-    process.stderr.write(
-      '\nTip: Disambiguate with Class.method (e.g. UserService.getUser) or read line range directly.\n'
-    );
+    if (matches.every((m) => m.isSfcBlock)) {
+      if (matches.every((m) => m.kind === 'template')) {
+        process.stderr.write(
+          '\nTip: Disambiguate with markup:1, markup:2 or read line range directly.\n'
+        );
+      } else if (matches.every((m) => m.kind === 'script')) {
+        process.stderr.write(
+          '\nTip: Disambiguate with specific script tag (e.g. script:setup) or read line range directly.\n'
+        );
+      } else if (matches.every((m) => m.kind === 'style')) {
+        process.stderr.write(
+          "\nTip: Disambiguate with specific style tag (e.g. 'style scoped') or read line range directly.\n"
+        );
+      } else {
+        process.stderr.write(
+          '\nTip: Disambiguate with specific block name or read line range directly.\n'
+        );
+      }
+    } else {
+      process.stderr.write(
+        '\nTip: Disambiguate with Class.method (e.g. UserService.getUser) or read line range directly.\n'
+      );
+    }
     process.exit(3);
   }
 

@@ -2,6 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { globSync } from 'tinyglobby';
 import { parseSourceFile, isTestFile } from './parser';
+import { isSfcFile, parseSfcFile } from './sfc/index';
 import type { GlanceOptions, OutlineItem } from './types';
 
 const IGNORED_DIRS = new Set([
@@ -25,6 +26,9 @@ const SUPPORTED_EXTS = new Set([
   '.cts',
   '.mjs',
   '.cjs',
+  '.vue',
+  '.svelte',
+  '.astro',
 ]);
 
 function isSupportedFile(file: string): boolean {
@@ -131,7 +135,9 @@ export function runGlance(options: GlanceOptions): void {
       return;
     }
 
-    const parsed = parseSourceFile(filePath, content, { includeTests });
+    const parsed = isSfcFile(filePath)
+      ? parseSfcFile(filePath, content, { includeTests })
+      : parseSourceFile(filePath, content, { includeTests });
 
     if (filters.length > 0) {
       const hasMatch = parsed.items.some(
@@ -183,6 +189,10 @@ export function runGlance(options: GlanceOptions): void {
 
     function renderTree(items: OutlineItem[], depth: number = 0) {
       for (const it of items) {
+        if (it.hideInGlance) {
+          continue;
+        }
+
         const matches = matchItemFilters(it, content, filters);
         const childMatches = hasChildMatching(it, content, filters);
 
@@ -192,7 +202,7 @@ export function runGlance(options: GlanceOptions): void {
 
         const span = `L${it.startLine}-L${it.endLine}`;
         let label = '';
-        if (it.kind === 'test') {
+        if (it.isSfcBlock || it.kind === 'test') {
           label = it.rawHeader;
         } else if (options.signatures) {
           label = it.rawHeader;
@@ -210,9 +220,9 @@ export function runGlance(options: GlanceOptions): void {
           }
         }
 
-        const outlineChildren = it.children.filter(
-          (ch) => ch.kind === 'method' || ch.kind === 'test'
-        );
+        const outlineChildren = it.isSfcBlock
+          ? it.children
+          : it.children.filter((ch) => ch.kind === 'method' || ch.kind === 'test');
         if (outlineChildren.length > 0) {
           renderTree(outlineChildren, depth + 1);
         }

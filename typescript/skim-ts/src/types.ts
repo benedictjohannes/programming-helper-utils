@@ -10,10 +10,12 @@ export interface OutlineItem {
   children: OutlineItem[];
   fieldsOrVariants: string[];
   isTest: boolean;
+  isSfcBlock?: boolean;
+  hideInGlance?: boolean;
 }
 
 export function getQualifiedName(item: OutlineItem): string {
-  if (item.parent) {
+  if (item.parent && !item.parent.isSfcBlock) {
     return `${item.parent.name}.${item.name}`;
   }
   return item.name;

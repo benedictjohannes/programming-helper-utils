@@ -7,7 +7,7 @@ export function isTestFile(filePath: string): boolean {
     return true;
   }
   const fileName = normalized.split('/').pop() || '';
-  return /\.(test|spec)\.(ts|tsx|js|jsx|mts|cts|mjs|cjs)$/.test(fileName);
+  return /\.(test|spec)\.(ts|tsx|js|jsx|mts|cts|mjs|cjs|vue|svelte|astro)$/.test(fileName);
 }
 
 export function getScriptKind(filePath: string): ts.ScriptKind {
