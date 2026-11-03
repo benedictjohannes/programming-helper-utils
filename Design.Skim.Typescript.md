@@ -57,7 +57,7 @@ In modern web codebases, application logic, component state, and prop contracts 
 All SFC extraction logic is decoupled from the core TypeScript parser and lives in `src/sfc/`:
 
 ```text
-typescript/skim-ts/src/
+skim-ts/src/
 ├── parser.ts            # Pure TypeScript AST walker & signature extractor
 └── sfc/
     ├── types.ts         # SfcBlock interface & block kinds
@@ -140,7 +140,7 @@ Outline:
 
 ## 6. File & Module Structure
 
-Directory: `typescript/skim-ts/`
+Directory: `skim-ts/`
 
 **Source files in `src/`**:
 - `cli.ts`: CLI entry point, argument parsing, error formatting, and standard exit codes.

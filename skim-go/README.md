@@ -1,7 +1,7 @@
 # `skim-go`
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/benedictjohannes/programming-helper-utils/go/skim-go.svg)](https://pkg.go.dev/github.com/benedictjohannes/programming-helper-utils/go/skim-go)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/github.com/benedictjohannes/programming-helper-utils/skim-go.svg)](https://pkg.go.dev/github.com/benedictjohannes/programming-helper-utils/skim-go)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A fast, zero-dependency, AST-based Go outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
@@ -65,7 +65,7 @@ flowchart TD
 Requires Go 1.22+:
 
 ```bash
-go install github.com/benedictjohannes/programming-helper-utils/go/skim-go@latest
+go install github.com/benedictjohannes/programming-helper-utils/skim-go@latest
 ```
 
 This installs `skim-go` into `$GOPATH/bin` (or `~/go/bin`). Ensure that directory is in your `PATH`.
@@ -74,7 +74,7 @@ This installs `skim-go` into `$GOPATH/bin` (or `~/go/bin`). Ensure that director
 
 ```bash
 git clone https://github.com/benedictjohannes/programming-helper-utils.git
-cd programming-helper-utils/go/skim-go
+cd programming-helper-utils/skim-go
 go build -o skim-go .
 
 # Move to a directory in your PATH (e.g. ~/.local/bin or /usr/local/bin)
@@ -444,4 +444,4 @@ go test ./...
 
 ## License
 
-[MIT](../../LICENSE)
+[MIT](LICENSE)

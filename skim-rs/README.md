@@ -1,7 +1,7 @@
 # `skim-rs`
 
 [![Crates.io](https://img.shields.io/crates/v/skim-rs.svg)](https://crates.io/crates/skim-rs)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A fast, lossless, AST-resilient Rust outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
@@ -74,7 +74,7 @@ Requires Rust 1.85+ (Edition 2024):
 
 ```bash
 git clone https://github.com/benedictjohannes/programming-helper-utils.git
-cd programming-helper-utils/rust/skim-rs
+cd programming-helper-utils/skim-rs
 cargo install --path .
 ```
 

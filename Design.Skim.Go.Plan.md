@@ -4,7 +4,7 @@
 Build a fast, dependency-free Go outline and code block extractor conforming to [Design.Skim.md](Design.Skim.md).
 
 ## 2. Architecture & Technologies
-- **Location**: `go/skim-go/`
+- **Location**: `skim-go/`
 - **Language**: Go (Standard Library only, zero 3rd-party dependencies)
 - **Core Packages**:
   - `go/parser`: Parsing Go files into AST (`parser.ParseComments`).
@@ -46,24 +46,24 @@ Build a fast, dependency-free Go outline and code block extractor conforming to 
 ## 4. Verification & Testing Strategy
 
 ### Step 1: Smoke Testing (First — Rapid Validation)
-Build the binary (`go build -o skim-go .` in `go/skim-go/`), then execute from within the target repository (`cwd = testingRepositories/gin`, cloning gin-gonic/gin):
+Build the binary (`go build -o skim-go .` in `skim-go/`), then execute from within the target repository (`cwd = testingRepositories/gin`, cloning gin-gonic/gin):
 ```bash
 # In cwd = testingRepositories/go:
-../../go/skim-go/skim-go glance gin.go -s -u
-../../go/skim-go/skim-go glance . -s -f "Context"
+../../skim-go/skim-go glance gin.go -s -u
+../../skim-go/skim-go glance . -s -f "Context"
 
 # Block extraction:
-../../go/skim-go/skim-go block context.go Context.JSON
-../../go/skim-go/skim-go block gin.go engine.run
-../../go/skim-go/skim-go block gin.go Engine -d
+../../skim-go/skim-go block context.go Context.JSON
+../../skim-go/skim-go block gin.go engine.run
+../../skim-go/skim-go block gin.go Engine -d
 
 # Test exclusion check (verify *_test.go and Test* functions omitted without -t):
-../../go/skim-go/skim-go glance . -s -f "Test"
-../../go/skim-go/skim-go glance . -s -f "Test" -t
+../../skim-go/skim-go glance . -s -f "Test"
+../../skim-go/skim-go glance . -s -f "Test" -t
 ```
 
 ### Step 2: In-Tree Fixtures & Automated Unit Tests (Last — Hardening)
-Create a `testdata/` directory inside `go/skim-go/` containing crafted Go sources covering edge cases:
+Create a `testdata/` directory inside `skim-go/` containing crafted Go sources covering edge cases:
 - `testdata/receivers.go`: Pointer vs. value receivers with identical base types.
 - `testdata/casing.go`: Exported `Item` vs unexported `item` to verify exact-case precedence.
 - `testdata/tests.go`: Mixed test functions and normal functions.
@@ -71,5 +71,5 @@ Create a `testdata/` directory inside `go/skim-go/` containing crafted Go source
 - Automate assertions via standard `go test ./...`.
 
 ## 5. Packaging & Distribution
-- Standard `go build -o skim-go` in `go/skim-go/`.
+- Standard `go build -o skim-go` in `skim-go/`.
 - Yields a static binary with zero external dependencies and near-instant execution.

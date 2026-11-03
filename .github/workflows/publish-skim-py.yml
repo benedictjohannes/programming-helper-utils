@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'python/skim-py/v*'
+      - 'skim-py/v*'
   workflow_dispatch:
 
 jobs:
@@ -15,7 +16,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: python/skim-py
+        working-directory: skim-py
 
     steps:
       - name: Checkout repository
@@ -43,4 +44,4 @@ jobs:
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          packages-dir: python/skim-py/dist/
+          packages-dir: skim-py/dist/

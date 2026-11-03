@@ -1,7 +1,7 @@
 # `skim-py`
 
 [![PyPI version](https://img.shields.io/pypi/v/skim-python.svg)](https://pypi.org/project/skim-python/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../../LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A fast, AST-resilient Python outline and verbatim code block extractor tailored for AI coding agents and terminal workflows.
 
@@ -91,7 +91,7 @@ pip install skim-python
 
 ```bash
 git clone https://github.com/benedictjohannes/programming-helper-utils.git
-cd programming-helper-utils/python/skim-py
+cd programming-helper-utils/skim-py
 
 # With uv:
 uv tool install --editable .

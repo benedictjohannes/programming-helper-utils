@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'rust/skim-rs/v*'
+      - 'skim-rs/v*'
   workflow_dispatch:
 
 jobs:
@@ -14,7 +15,7 @@ jobs:
       contents: read
     defaults:
       run:
-        working-directory: rust/skim-rs
+        working-directory: skim-rs
 
     steps:
       - name: Checkout repository

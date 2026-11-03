@@ -48,10 +48,10 @@ flowchart TD
 
 | Language | Binary | Package & Registry | AST Engine | Directory |
 |---|---|---|---|---|
-| **Go** | `skim-go` | [![Go Reference](https://pkg.go.dev/badge/github.com/benedictjohannes/programming-helper-utils/go/skim-go.svg)](https://pkg.go.dev/github.com/benedictjohannes/programming-helper-utils/go/skim-go) | `go/parser` (stdlib, zero deps) | [`go/skim-go`](go/skim-go/) |
-| **Rust** | `skim-rs` | [![Crates.io](https://img.shields.io/crates/v/skim-rs.svg)](https://crates.io/crates/skim-rs) | `ra_ap_syntax` (Rust Analyzer) | [`rust/skim-rs`](rust/skim-rs/) |
-| **TypeScript / JS** | `skim-ts` | [![npm version](https://img.shields.io/npm/v/skim-ts.svg)](https://www.npmjs.com/package/skim-ts) | TypeScript Compiler API | [`typescript/skim-ts`](typescript/skim-ts/) |
-| **Python** | `skim-py` | [![PyPI version](https://img.shields.io/pypi/v/skim-python.svg)](https://pypi.org/project/skim-python/) | `ast` (stdlib, zero deps) | [`python/skim-py`](python/skim-py/) |
+| **Go** | `skim-go` | [![Go Reference](https://pkg.go.dev/badge/github.com/benedictjohannes/programming-helper-utils/skim-go.svg)](https://pkg.go.dev/github.com/benedictjohannes/programming-helper-utils/skim-go) | `go/parser` (stdlib, zero deps) | [`skim-go`](skim-go/) |
+| **Rust** | `skim-rs` | [![Crates.io](https://img.shields.io/crates/v/skim-rs.svg)](https://crates.io/crates/skim-rs) | `ra_ap_syntax` (Rust Analyzer) | [`skim-rs`](skim-rs/) |
+| **TypeScript / JS** | `skim-ts` | [![npm version](https://img.shields.io/npm/v/skim-ts.svg)](https://www.npmjs.com/package/skim-ts) | TypeScript Compiler API | [`skim-ts`](skim-ts/) |
+| **Python** | `skim-py` | [![PyPI version](https://img.shields.io/pypi/v/skim-python.svg)](https://pypi.org/project/skim-python/) | `ast` (stdlib, zero deps) | [`skim-py`](skim-py/) |
 
 All tools adhere to the common standard defined in [Design.Skim.md](Design.Skim.md).
 
@@ -88,7 +88,7 @@ skim-<lang> block  [options] <file> <target>
 Requires Go 1.22+:
 
 ```bash
-go install github.com/benedictjohannes/programming-helper-utils/go/skim-go@latest
+go install github.com/benedictjohannes/programming-helper-utils/skim-go@latest
 ```
 
 ### Rust (`skim-rs`)
@@ -136,7 +136,7 @@ Instead of manually editing config files, copy and paste this single prompt dire
 ```text
 Ask me which languages in this project or my environment need AST skimming support (Go, Rust, and/or TypeScript/JavaScript).
 Then, check if the corresponding `skim-*` tool(s) are installed in PATH, and install any missing ones:
-- Go (`skim-go`): `go install github.com/benedictjohannes/programming-helper-utils/go/skim-go@latest`
+- Go (`skim-go`): `go install github.com/benedictjohannes/programming-helper-utils/skim-go@latest`
 - Rust (`skim-rs`): `cargo install skim-rs`
 - TypeScript/JavaScript (`skim-ts`): `bun add -g skim-ts` (or `npm install -g skim-ts`)
 

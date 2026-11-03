@@ -82,7 +82,7 @@ Tests are excluded by default to avoid inflating LLM context windows with assert
 
 ## 5. File & Module Structure
 
-Directory: `python/skim-py/`
+Directory: `skim-py/`
 - `pyproject.toml`: PEP 621 metadata and dependencies (`parso >= 0.8.7`).
 
 **Files in `src/skim_py/`**:

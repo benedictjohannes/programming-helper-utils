@@ -4,7 +4,7 @@
 Build a fast, AST-based Rust outline and code block extractor conforming to [Design.Skim.md](Design.Skim.md).
 
 ## 2. Architecture & Technologies
-- **Location**: `rust/skim-rs/`
+- **Location**: `skim-rs/`
 - **Crate Type**: Single binary crate (`skim-rs`)
 - **Language**: Rust (Edition 2024)
 - **Core Dependencies**:
@@ -57,24 +57,24 @@ Build a fast, AST-based Rust outline and code block extractor conforming to [Des
 ## 4. Verification & Testing Strategy
 
 ### Step 1: Smoke Testing (Rapid Real-World Validation)
-Build the release binary (`cargo build --release` in `rust/skim-rs/`), then execute from within the target repository (`cwd = testingRepositories/axum`, cloning `tokio-rs/axum`):
+Build the release binary (`cargo build --release` in `skim-rs/`), then execute from within the target repository (`cwd = testingRepositories/axum`, cloning `tokio-rs/axum`):
 ```bash
 # In cwd = testingRepositories/rust:
-../../rust/skim-rs/target/release/skim-rs glance axum/src/lib.rs -s -u
-../../rust/skim-rs/target/release/skim-rs glance axum/src/ -s -f "Router"
+../../skim-rs/target/release/skim-rs glance axum/src/lib.rs -s -u
+../../skim-rs/target/release/skim-rs glance axum/src/ -s -f "Router"
 
 # Block extraction:
-../../rust/skim-rs/target/release/skim-rs block axum/src/routing/mod.rs Router::route
-../../rust/skim-rs/target/release/skim-rs block axum/src/routing/mod.rs router::route
-../../rust/skim-rs/target/release/skim-rs block axum/src/handler/mod.rs Handler --raw
+../../skim-rs/target/release/skim-rs block axum/src/routing/mod.rs Router::route
+../../skim-rs/target/release/skim-rs block axum/src/routing/mod.rs router::route
+../../skim-rs/target/release/skim-rs block axum/src/handler/mod.rs Handler --raw
 
 # Test exclusion check:
-../../rust/skim-rs/target/release/skim-rs glance axum/src/ -s -f "test"
-../../rust/skim-rs/target/release/skim-rs glance axum/src/ -s -f "test" -t
+../../skim-rs/target/release/skim-rs glance axum/src/ -s -f "test"
+../../skim-rs/target/release/skim-rs glance axum/src/ -s -f "test" -t
 ```
 
 ### Step 2: In-Tree Fixtures & Automated Unit Tests (Hardening)
-Create a `fixtures/` directory inside `rust/skim-rs/` containing crafted Rust sources covering edge cases:
+Create a `fixtures/` directory inside `skim-rs/` containing crafted Rust sources covering edge cases:
 - `fixtures/impls.rs`: Inherent vs trait impls, generic parameters, lifetimes, and `where` clauses.
 - `fixtures/casing.rs`: Struct `Config` vs function `config` to test exact-case precedence.
 - `fixtures/tests.rs`: Mixed `#[cfg(test)]` modules and `#[test]` functions with normal items.
@@ -82,8 +82,8 @@ Create a `fixtures/` directory inside `rust/skim-rs/` containing crafted Rust so
 - Automate assertions via standard `cargo test`.
 
 ## 5. Packaging & Distribution
-- Single binary crate in `rust/skim-rs/`.
-- Distribution via `cargo install --path rust/skim-rs` (local) or `cargo install skim-rs` (crates.io / git).
+- Single binary crate in `skim-rs/`.
+- Distribution via `cargo install --path skim-rs` (local) or `cargo install skim-rs` (crates.io / git).
 
 ## 6. Resilient Parsing & Syntax Diagnostics 
 
