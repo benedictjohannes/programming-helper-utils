@@ -157,7 +157,7 @@ A local-only, compile-to-single-HTML web application designed to visualize, insp
 - **Deep Collapsibility**: Full turns, XML tag bubbles (`<USER_REQUEST>`, `<ADDITIONAL_METADATA>`, etc.), and individual tool calls can be expanded or collapsed recursively.
 - **Rich Visualizations**: Side-by-side file edit diffs, command-line blocks, token usage statistics, and model thinking/reasoning blocks.
 - **In-Memory Search**: Full-text search with match cycling (`Enter` / `Shift+Enter`) and scope filters.
-- **Single HTML Distribution**: Compiles via Bun + Vite into a standalone `dist/index.html` with zero external runtime dependencies. Deployed live at [https://coding-transcript.encelerate.com](https://coding-transcript.encelerate.com).
+- **Single HTML Distribution**: Compiles via Bun + Vite into a standalone `dist/index.html` with zero external runtime dependencies. Deployed live at [programming-helper-utils.encelerate.com/coding-transcript](https://programming-helper-utils.encelerate.com/coding-transcript).
 
 See [`coding-transcript/README.md`](coding-transcript/README.md) for build instructions and [`Design.CodingTranscript.md`](Design.CodingTranscript.md) for architectural details.
 

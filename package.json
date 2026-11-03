@@ -1,0 +1,12 @@
+{
+  "name": "programming-utils-root",
+  "private": true,
+  "workspaces": [
+    "coding-transcript",
+    "site"
+  ],
+  "scripts": {
+    "build": "bun run scripts/build-site.ts"
+  }
+}
+

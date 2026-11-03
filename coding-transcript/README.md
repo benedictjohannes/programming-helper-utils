@@ -4,7 +4,7 @@ A lightweight, standalone, single-file HTML viewer for AI agent conversation tra
 
 Transcripts are valuable records to review with team members for prompt refinement, debugging, and post-mortems. This tool allows viewing and sharing transcripts easily while keeping data secure: **everything runs strictly client-side inside the browser—nothing leaves your computer**.
 
-**Live Demo**: [https://coding-transcript.encelerate.com](https://coding-transcript.encelerate.com)
+**Live Deployment**: [https://programming-helper-utils.encelerate.com/coding-transcript](https://programming-helper-utils.encelerate.com/coding-transcript)
 
 ## Supported Platforms
 

@@ -7,7 +7,7 @@
 ### Rationale & Privacy Guarantee
 Agent transcripts (such as `transcript.jsonl` or session logs) are valuable artifacts for post-mortems, pair-programming discussions, code reviews, and prompt engineering. However, raw JSON/JSONL files are tedious to read manually, and sharing sensitive conversation logs with third-party web services introduces privacy risks.
 
-`coding-transcript` addresses this by compiling into a standalone, single-file HTML bundle (`dist/index.html`). All parsing, token calculation, and searching execute strictly client-side inside the user's browser: **nothing leaves the computer**. It can be hosted on a static server (e.g. Cloudflare Pages at `coding-transcript.encelerate.com`), accessed via `file://`, or distributed directly as an HTML file.
+`coding-transcript` addresses this by compiling into a standalone, single-file HTML bundle (`dist/index.html`). All parsing, token calculation, and searching execute strictly client-side inside the user's browser: **nothing leaves the computer**. It can be hosted on a static server (e.g. Cloudflare Pages at `https://programming-helper-utils.encelerate.com/coding-transcript`), accessed via `file://`, or distributed directly as an HTML file.
 
 ---
 
