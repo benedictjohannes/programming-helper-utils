@@ -1,0 +1,252 @@
+---
+import { Sparkles, Zap, FileText, ChevronLeft, ChevronRight, ArrowRight } from "lucide-astro";
+---
+
+<section class="text-center space-y-8 pt-6">
+    <!-- Top Pitch Pill Badge -->
+    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-700/70 text-xs font-mono text-zinc-300">
+        <Sparkles class="w-3.5 h-3.5 text-amber-400" />
+        <span>Context-lean tooling for the autonomous coding era</span>
+    </div>
+
+    <!-- Main Headline -->
+    <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight text-white max-w-4xl mx-auto leading-tight">
+        High-signal developer tools <br class="hidden sm:inline" />
+        built for{" "}
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-rose-400 to-amber-500">
+            AI coding agents
+        </span>
+        .
+    </h1>
+
+    <!-- Slider Container -->
+    <div
+        id="hero-slider"
+        class="relative max-w-3xl mx-auto px-4 sm:px-12 pt-2"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Features Highlights"
+    >
+        <!-- Slides Track Wrapper -->
+        <div class="relative overflow-hidden min-h-[190px] sm:min-h-[170px] flex items-center justify-center">
+            <!-- Slide 1: Skim Tools -->
+            <div
+                class="hero-slide transition-all duration-500 ease-out flex flex-col items-center opacity-100 translate-x-0"
+                data-slide-index="0"
+                role="group"
+                aria-roledescription="slide"
+                aria-label="1 of 2: Skim Tools"
+            >
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-950/70 border border-sky-800/60 text-xs font-mono text-sky-300 mb-3">
+                    <Zap class="w-3 h-3 text-sky-400" />
+                    <span>Skim Tools</span>
+                </div>
+                <p class="text-base sm:text-lg text-zinc-300 max-w-xl mx-auto leading-relaxed text-balance">
+                    Stop burning token limits on 3,000-line test suites. Give your agents outline of your code. 4 languages supported.
+                </p>
+                <div class="pt-5">
+                    <a
+                        href="#skim"
+                        class="px-5 py-2.5 rounded-xl bg-white text-zinc-950 font-semibold text-sm hover:bg-zinc-200 transition flex items-center gap-2 shadow-lg shadow-white/5 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    >
+                        <span>Explore Skim Tools</span>
+                        <ArrowRight class="w-4 h-4 text-zinc-800" />
+                    </a>
+                </div>
+            </div>
+
+            <!-- Slide 2: Coding Transcript -->
+            <div
+                class="hero-slide absolute inset-0 transition-all duration-500 ease-out flex flex-col items-center justify-center opacity-0 pointer-events-none translate-x-6"
+                data-slide-index="1"
+                role="group"
+                aria-roledescription="slide"
+                aria-label="2 of 2: Coding Transcript"
+            >
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-950/70 border border-teal-800/60 text-xs font-mono text-teal-300 mb-3">
+                    <FileText class="w-3 h-3 text-teal-400" />
+                    <span>Coding Transcript</span>
+                </div>
+                <p class="text-base sm:text-lg text-zinc-300 max-w-xl mx-auto leading-relaxed text-balance">
+                    View coding session transcript, that of your own or shared by others. Renders locally to guarantee privacy.
+                </p>
+                <div class="pt-5">
+                    <a
+                        href="#coding-transcript"
+                        class="px-5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-700/80 text-zinc-100 font-semibold text-sm hover:bg-zinc-800/90 transition flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-teal-400"
+                    >
+                        <span>Explore Coding Transcript</span>
+                        <ArrowRight class="w-4 h-4 text-zinc-400" />
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Left / Right Navigation Buttons -->
+        <button
+            type="button"
+            id="slider-prev"
+            class="absolute left-0 top-1/2 -translate-y-1/2 p-2 rounded-full text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 transition focus:outline-none focus:ring-2 focus:ring-zinc-500"
+            aria-label="Previous slide"
+        >
+            <ChevronLeft class="w-5 h-5" />
+        </button>
+
+        <button
+            type="button"
+            id="slider-next"
+            class="absolute right-0 top-1/2 -translate-y-1/2 p-2 rounded-full text-zinc-400 hover:text-white bg-zinc-900/60 hover:bg-zinc-800 border border-zinc-800 transition focus:outline-none focus:ring-2 focus:ring-zinc-500"
+            aria-label="Next slide"
+        >
+            <ChevronRight class="w-5 h-5" />
+        </button>
+
+        <!-- Indicators / Dots -->
+        <div class="flex items-center justify-center gap-2 pt-6" role="tablist" aria-label="Slide Selection">
+            <button
+                type="button"
+                class="slider-dot w-8 h-2 rounded-full bg-sky-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                data-dot-index="0"
+                role="tab"
+                aria-selected="true"
+                aria-label="Slide 1"
+            ></button>
+            <button
+                type="button"
+                class="slider-dot w-2.5 h-2 rounded-full bg-zinc-700 hover:bg-zinc-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-zinc-400"
+                data-dot-index="1"
+                role="tab"
+                aria-selected="false"
+                aria-label="Slide 2"
+            ></button>
+        </div>
+    </div>
+</section>
+
+<script>
+    function setupHeroSlider() {
+        const slider = document.getElementById("hero-slider");
+        if (!slider) return;
+
+        const slides = slider.querySelectorAll<HTMLElement>(".hero-slide");
+        const dots = slider.querySelectorAll<HTMLButtonElement>(".slider-dot");
+        const prevBtn = document.getElementById("slider-prev");
+        const nextBtn = document.getElementById("slider-next");
+
+        if (!slides.length) return;
+
+        let currentIndex = 0;
+        let timer: ReturnType<typeof setInterval> | null = null;
+        const autoPlayInterval = 6000;
+
+        function updateSlide(newIndex: number) {
+            const nextIdx = (newIndex + slides.length) % slides.length;
+            const direction = nextIdx >= currentIndex ? 1 : -1;
+
+            slides.forEach((slide, idx) => {
+                if (idx === nextIdx) {
+                    slide.classList.remove("opacity-0", "pointer-events-none", "translate-x-6", "-translate-x-6", "absolute", "inset-0");
+                    slide.classList.add("opacity-100", "translate-x-0");
+                    slide.removeAttribute("inert");
+                } else {
+                    slide.classList.remove("opacity-100", "translate-x-0");
+                    slide.classList.add("opacity-0", "pointer-events-none", "absolute", "inset-0");
+                    if (direction > 0) {
+                        slide.classList.add("-translate-x-6");
+                        slide.classList.remove("translate-x-6");
+                    } else {
+                        slide.classList.add("translate-x-6");
+                        slide.classList.remove("-translate-x-6");
+                    }
+                    slide.setAttribute("inert", "");
+                }
+            });
+
+            dots.forEach((dot, idx) => {
+                if (idx === nextIdx) {
+                    dot.classList.remove("w-2.5", "bg-zinc-700", "hover:bg-zinc-600");
+                    dot.classList.add("w-8", "bg-sky-400");
+                    dot.setAttribute("aria-selected", "true");
+                } else {
+                    dot.classList.remove("w-8", "bg-sky-400");
+                    dot.classList.add("w-2.5", "bg-zinc-700", "hover:bg-zinc-600");
+                    dot.setAttribute("aria-selected", "false");
+                }
+            });
+
+            currentIndex = nextIdx;
+        }
+
+        function nextSlide() {
+            updateSlide(currentIndex + 1);
+        }
+
+        function prevSlide() {
+            updateSlide(currentIndex - 1);
+        }
+
+        function startAutoPlay() {
+            stopAutoPlay();
+            timer = setInterval(nextSlide, autoPlayInterval);
+        }
+
+        function stopAutoPlay() {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+            }
+        }
+
+        prevBtn?.addEventListener("click", () => {
+            prevSlide();
+            startAutoPlay();
+        });
+
+        nextBtn?.addEventListener("click", () => {
+            nextSlide();
+            startAutoPlay();
+        });
+
+        dots.forEach((dot, idx) => {
+            dot.addEventListener("click", () => {
+                updateSlide(idx);
+                startAutoPlay();
+            });
+        });
+
+        // Pause on mouse enter / focus, resume on leave
+        slider.addEventListener("mouseenter", stopAutoPlay);
+        slider.addEventListener("mouseleave", startAutoPlay);
+        slider.addEventListener("focusin", stopAutoPlay);
+        slider.addEventListener("focusout", startAutoPlay);
+
+        // Touch swipe support
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        slider.addEventListener("touchstart", (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+            stopAutoPlay();
+        }, { passive: true });
+
+        slider.addEventListener("touchend", (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            const diff = touchEndX - touchStartX;
+            if (Math.abs(diff) > 40) {
+                if (diff < 0) {
+                    nextSlide();
+                } else {
+                    prevSlide();
+                }
+            }
+            startAutoPlay();
+        }, { passive: true });
+
+        // Start autoplay initially
+        startAutoPlay();
+    }
+
+    // Run on initial load and handle Astro page transitions if any
+    setupHeroSlider();
+    document.addEventListener("astro:page-load", setupHeroSlider);
+</script>

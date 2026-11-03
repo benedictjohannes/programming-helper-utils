@@ -1,0 +1,184 @@
+---
+import { ExternalLink, Menu, X } from "lucide-astro";
+
+interface Props {
+    repoUrl?: string;
+}
+
+const {
+    repoUrl = "https://github.com/benedictjohannes/programming-helper-utils",
+} = Astro.props;
+---
+
+<!-- Top Navigation -->
+<header class="sticky top-0 z-50 backdrop-blur-md bg-zinc-950/90 border-b border-zinc-800/80">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3">
+                <a href="/" class="flex-shrink-0 group">
+                    <img
+                        src="/favicon.svg"
+                        alt="Encelerate Logo"
+                        class="w-8 h-8 rounded-lg group-hover:scale-105 transition-transform"
+                    />
+                </a>
+                <div class="flex flex-col">
+                    <a href="/" class="font-bold tracking-tight text-zinc-100 flex items-center gap-1.5 text-sm sm:text-base hover:text-white transition">
+                        Programmer Toolkit
+                        <span class="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700/60 font-medium">
+                            OSS
+                        </span>
+                    </a>
+                    <span class="text-[11px] text-zinc-400 font-mono hidden sm:inline whitespace-nowrap">
+                        by <a
+                            href="https://encelerate.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-zinc-300 hover:text-white underline decoration-zinc-600 hover:decoration-zinc-300 underline-offset-2 transition"
+                        >encelerate.com</a>
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop Nav: Exactly 2 Items + GitHub -->
+        <nav class="hidden md:flex items-center gap-3 text-sm font-medium">
+            <a
+                href="#skim"
+                class="px-3 py-1.5 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-800/60 transition"
+            >
+                Skim Tools
+            </a>
+
+            <div class="flex items-center rounded-lg border border-zinc-800 bg-zinc-900/60 p-0.5">
+                <a
+                    href="#coding-transcript"
+                    class="px-3 py-1 rounded-md text-zinc-300 hover:text-white hover:bg-zinc-800/80 transition"
+                >
+                    Coding Transcript
+                </a>
+                <a
+                    href="/coding-transcript.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="p-1 rounded-md text-sky-400 hover:text-sky-300 bg-sky-950/60 hover:bg-sky-900/80 border border-sky-800/40 transition ml-0.5"
+                    title="Open Coding Transcript in new tab"
+                    aria-label="Open Coding Transcript in new tab"
+                >
+                    <ExternalLink class="w-3.5 h-3.5" />
+                </a>
+            </div>
+
+            <a
+                href={repoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="p-2 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800/60 transition ml-2"
+                aria-label="GitHub Repository"
+            >
+                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path
+                        fill-rule="evenodd"
+                        clip-rule="evenodd"
+                        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                    ></path>
+                </svg>
+            </a>
+        </nav>
+
+        <!-- Mobile Menu Toggle Button -->
+        <div class="flex items-center md:hidden">
+            <button
+                id="mobile-menu-toggle"
+                type="button"
+                class="p-2 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800/80 transition"
+                aria-label="Toggle navigation menu"
+                aria-expanded="false"
+            >
+                <Menu class="w-6 h-6 icon-menu" />
+                <X class="w-6 h-6 icon-close hidden" />
+            </button>
+        </div>
+    </div>
+
+    <!-- Mobile Dropdown Menu -->
+    <div
+        id="mobile-menu"
+        class="hidden md:hidden border-t border-zinc-800/80 bg-zinc-950/95 px-4 py-4 space-y-3"
+    >
+        <a
+            href="#skim"
+            class="mobile-nav-link block px-3 py-2 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-900 transition"
+        >
+            Skim Tools
+        </a>
+
+        <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-zinc-900/70 border border-zinc-800">
+            <a
+                href="#coding-transcript"
+                class="mobile-nav-link text-sm font-medium text-zinc-300 hover:text-white transition"
+            >
+                Coding Transcript
+            </a>
+            <a
+                href="/coding-transcript.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono font-medium text-sky-400 bg-sky-950/80 hover:bg-sky-900 border border-sky-800/50 transition"
+            >
+                <span>Launch App</span>
+                <ExternalLink class="w-3 h-3" />
+            </a>
+        </div>
+
+        <a
+            href={repoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium text-zinc-400 hover:text-white hover:bg-zinc-900 transition"
+        >
+            <span>GitHub Repository</span>
+            <ExternalLink class="w-4 h-4 text-zinc-500" />
+        </a>
+    </div>
+</header>
+
+<script>
+    function setupMobileMenu() {
+        const mobileMenuToggle = document.getElementById("mobile-menu-toggle");
+        const mobileMenu = document.getElementById("mobile-menu");
+
+        if (mobileMenuToggle && mobileMenu) {
+            const iconMenu = mobileMenuToggle.querySelector(".icon-menu");
+            const iconClose = mobileMenuToggle.querySelector(".icon-close");
+
+            mobileMenuToggle.addEventListener("click", () => {
+                const isHidden = mobileMenu.classList.contains("hidden");
+                if (isHidden) {
+                    mobileMenu.classList.remove("hidden");
+                    mobileMenuToggle.setAttribute("aria-expanded", "true");
+                    iconMenu?.classList.add("hidden");
+                    iconClose?.classList.remove("hidden");
+                } else {
+                    mobileMenu.classList.add("hidden");
+                    mobileMenuToggle.setAttribute("aria-expanded", "false");
+                    iconMenu?.classList.remove("hidden");
+                    iconClose?.classList.add("hidden");
+                }
+            });
+
+            // Close menu when clicking any nav anchor link
+            mobileMenu.querySelectorAll(".mobile-nav-link").forEach((link) => {
+                link.addEventListener("click", () => {
+                    mobileMenu.classList.add("hidden");
+                    mobileMenuToggle.setAttribute("aria-expanded", "false");
+                    iconMenu?.classList.remove("hidden");
+                    iconClose?.classList.add("hidden");
+                });
+            });
+        }
+    }
+
+    setupMobileMenu();
+    document.addEventListener("astro:page-load", setupMobileMenu);
+</script>

@@ -1,0 +1,50 @@
+---
+interface Props {
+    repoUrl?: string;
+}
+
+const {
+    repoUrl = "https://github.com/benedictjohannes/programming-helper-utils",
+} = Astro.props;
+---
+
+<footer class="border-t border-zinc-800/80 bg-zinc-950 py-12 text-sm text-zinc-400">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <img
+                src="/favicon.svg"
+                alt="Encelerate Logo"
+                class="w-6 h-6 rounded"
+            />
+            <span>
+                Programmer Toolkit • by{" "}
+                <a
+                    href="https://encelerate.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-zinc-300 hover:text-white underline decoration-zinc-600 hover:decoration-zinc-300 underline-offset-2 transition"
+                >
+                    encelerate.com
+                </a>
+            </span>
+        </div>
+        <div class="flex items-center gap-6">
+            <a
+                href={repoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-zinc-300 transition"
+            >
+                GitHub
+            </a>
+            <a
+                href={`${repoUrl}/blob/main/LICENSE`}
+                target="_blank"
+                rel="noopener noreferrer"
+                class="hover:text-zinc-300 transition"
+            >
+                MIT License
+            </a>
+        </div>
+    </div>
+</footer>

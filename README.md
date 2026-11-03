@@ -16,7 +16,7 @@ A unified suite of lightweight, high-performance developer tools conforming to t
 
 ## The Problem: The Agent Context Tax
 
-When AI coding assistants (such as Claude, Gemini, ChatGPT, or Cursor) operate on real-world codebases, standard code ingestion techniques degrade agent performance, burn token budgets, and cause context drift:
+When AI coding assistants (such as Claude, Antigravity, or Codex) operate on real-world codebases, standard code ingestion techniques degrade agent performance, burn token budgets, and cause context drift:
 
 1. **Context Exhaustion & Attention Dilution**: Dumping 1,000–5,000 line source files burns through context windows rapidly. Irrelevant implementation details dilute model attention, leading to missed context and hallucinations.
 2. **The "Grep & Snippet" Partial Context Trap**: Line-based search tools (`grep`, `rg -C 5`) only capture arbitrary line windows. They truncate function signatures, miss enclosing scopes, cut off closing braces, or drop docstrings. The agent is forced to guess surrounding context or issue secondary read requests.
@@ -131,7 +131,7 @@ uv tool install skim-python
 
 ## Quick Setup: Let Your Agent Configure Itself
 
-Instead of manually editing config files, copy and paste this single prompt directly into your AI coding assistant (Cursor, Claude Code, Windsurf, Antigravity, etc.):
+Instead of manually editing config files, copy and paste this single prompt directly into your AI coding assistant (Claude Code, Codex, Antigravity, etc.):
 
 ```text
 Ask me which languages in this project or my environment need AST skimming support (Go, Rust, and/or TypeScript/JavaScript).
