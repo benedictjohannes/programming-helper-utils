@@ -9,9 +9,11 @@ import { standardChatParser } from '../../src/parsers/standard-chat';
 
 const antigravityFixturePath = resolve(import.meta.dir, '../../fixtures/audigma.antigravity.jsonl');
 const opencodeFixturePath = resolve(import.meta.dir, '../../fixtures/audigma.opencode.json');
+const claudeCodeFixturePath = resolve(import.meta.dir, '../../fixtures/audigma.claude-code.jsonl');
 
 const antigravityRaw = readFileSync(antigravityFixturePath, 'utf8');
 const opencodeRaw = readFileSync(opencodeFixturePath, 'utf8');
+const claudeCodeRaw = readFileSync(claudeCodeFixturePath, 'utf8');
 
 function extractSampleRecords(rawText: string, maxSamples = 5): any[] {
   const records: any[] = [];
@@ -46,6 +48,12 @@ describe('Platform Auto-Detection (detectAndParse)', () => {
       expect(result.platform.id).toBe('opencode');
       expect(result.platform.name).toBe('OpenCode');
     });
+
+    it('correctly auto-detects audigma.claude-code.jsonl as claude_code', () => {
+      const result = detectAndParse(claudeCodeRaw);
+      expect(result.platform.id).toBe('claude_code');
+      expect(result.platform.name).toBe('Claude Code');
+    });
   });
 
   describe('False-Positive / Collision Resistance', () => {
@@ -62,6 +70,13 @@ describe('Platform Auto-Detection (detectAndParse)', () => {
       expect(claudeCodeParser.detect(opencodeRaw, samples)).toBe(false);
       expect(standardChatParser.detect(opencodeRaw, samples)).toBe(false);
     });
+
+    it('audigma.claude-code.jsonl does not falsely trigger other parsers', () => {
+      const samples = extractSampleRecords(claudeCodeRaw);
+      expect(antigravityParser.detect(claudeCodeRaw, samples)).toBe(false);
+      expect(openCodeParser.detect(claudeCodeRaw, samples)).toBe(false);
+      expect(standardChatParser.detect(claudeCodeRaw, samples)).toBe(false);
+    });
   });
 
   describe('Forced Platform Override', () => {
@@ -73,6 +88,11 @@ describe('Platform Auto-Detection (detectAndParse)', () => {
     it('forces antigravityParser when forcedPlatformId is antigravity', () => {
       const result = detectAndParse(opencodeRaw, 'antigravity');
       expect(result.platform.id).toBe('antigravity');
+    });
+
+    it('forces claudeCodeParser when forcedPlatformId is claude_code', () => {
+      const result = detectAndParse(opencodeRaw, 'claude_code');
+      expect(result.platform.id).toBe('claude_code');
     });
   });
 

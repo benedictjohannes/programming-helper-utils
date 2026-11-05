@@ -15,7 +15,7 @@ Agent transcripts (such as `transcript.jsonl` or session logs) are valuable arti
 
 - **Antigravity** (`transcript.jsonl`, `transcript_full.jsonl`): **Verified / Tested**. Full support for `USER_INPUT`, `PLANNER_RESPONSE` tool invocations paired with `GENERIC` outputs, thinking blocks, and token usage metrics.
 - **OpenCode** (`*.json` session exports): **Verified / Tested**. Full support for multi-part messages, `reasoning` / thinking blocks, and `tool-invocation` / `tool-result` pairings.
-- **Claude Code** (`*.jsonl`): **Experimental** (Untested). Translates `tool_use` and `tool_result` content blocks into the timeline model.
+- **Claude Code** (`*.jsonl`): **Verified / Tested**. Full support for event streaming records (`user`, `assistant`, `system`, `attachment`), `tool_use` and `tool_result` pairing, file mutation tracking (`Write`, `Edit`), thinking duration markers, and session-level cost/token accounting.
 - **Standard Chat / OpenAI / AutoGen** (`*.json`, `*.jsonl`): **Experimental** (Untested). Supports standard `{ role, content }` structures.
 
 ---
@@ -89,6 +89,7 @@ When a file is loaded with platform set to `auto`:
   - `fixtures/`: Sample transcripts used for verification and regression checks.
     - `audigma.antigravity.jsonl`: Real-world Antigravity transcript fixture.
     - `audigma.opencode.json`: Real-world OpenCode session export fixture.
+    - `audigma.claude-code.jsonl`: Real-world Claude Code session event stream fixture.
   - `dist/`: Build output directory (gitignored). Contains `index.html`.
   - `src/`: Source code.
     - `main.ts`: Application entry point; mounts Vue and imports CSS.
@@ -112,7 +113,7 @@ When a file is loaded with platform set to `auto`:
       - `index.ts`: Registry and auto-detection dispatcher.
       - `antigravity.ts`: Parser for Antigravity JSONL logs.
       - `opencode.ts`: Parser for OpenCode JSON logs.
-      - `claude-code.ts`: Parser for Claude Code JSONL logs (Experimental).
+      - `claude-code.ts`: Parser for Claude Code JSONL session logs.
       - `standard-chat.ts`: Parser for OpenAI / AutoGen messages (Experimental).
     - `utils/`: Shared utilities.
       - `markdown.ts`: Marked + Prism integration for GFM Markdown parsing and code block highlighting.
@@ -168,11 +169,12 @@ When a file is loaded with platform set to `auto`:
 
 ## Verification & Testing
 
-The test suite runs with native Bun test (`bun test`), executing 131 unit and component tests across 14 test suites:
+The test suite runs with native Bun test (`bun test`), executing 146 unit and component tests across 15 test suites:
 - **Environment & Preload** (`tests/setup.ts`): Emulates browser DOM via `happy-dom` and compiles `.vue` SFCs on the fly using `@vue/compiler-sfc` via a custom Bun plugin.
 - **Parser & Invariant Tests** (`tests/parsers/`):
   - `audigma.antigravity.jsonl`: Verifies tool-result pairing, token summation, XML bubble generation, and contiguous step indexing.
   - `audigma.opencode.json`: Verifies parsing of multi-part reasoning blocks, tool invocations, and text blocks.
+  - `audigma.claude-code.jsonl`: Verifies event graph record streaming, tool-result matching, Write/Edit file operations, context attachments, and session token accounting.
   - Auto-detection: Positive detection, collision resistance, and graceful fallback on malformed input.
 - **Component Tests** (`tests/components/`): Verifies mounting, user interactions, search navigation with tool expansion, theme toggling, XML collapse reactivity, `ReasoningBubble` states, `FilterBar` presets/toggling, `StatsBar` token accounting, and `App.vue` secondary bar exclusivity.
 - **Build Verification** (`tests/build.test.ts`): Validates that `vite build` produces a fully self-contained `dist/index.html` without external network scripts or styles.

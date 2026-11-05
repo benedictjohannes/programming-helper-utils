@@ -193,4 +193,63 @@ describe('XML Bubble Component (XmlBubbleView.vue)', () => {
       expect(wrapper.text()).toContain('Plain outro text after tag');
     });
   });
+
+  describe('Empty XML Tags', () => {
+    it('renders empty tag with (empty) indicator, 0 chars, and no chevron', () => {
+      const content = '<COMMAND-ARGS></COMMAND-ARGS>';
+      const wrapper = mount(XmlBubbleView, {
+        props: {
+          content,
+        },
+      });
+
+      expect(wrapper.text()).toContain('<COMMAND-ARGS>');
+      expect(wrapper.text()).toContain('(empty)');
+      expect(wrapper.text()).toContain('0 chars');
+      expect(wrapper.find('.cursor-default').exists()).toBe(true);
+      expect(wrapper.find('.cursor-pointer').exists()).toBe(false);
+      expect(wrapper.findComponent({ name: 'ChevronRight' }).exists()).toBe(false);
+    });
+
+    it('refuses to expand on header click when empty', async () => {
+      const content = '<COMMAND-ARGS></COMMAND-ARGS>';
+      const wrapper = mount(XmlBubbleView, {
+        props: {
+          content,
+        },
+      });
+
+      const container = wrapper.find('.p-3.bg-\\[var\\(--bg-primary\\)\\]');
+      expect((container.element as HTMLElement).style.display).toBe('none');
+
+      // Click on header
+      const header = wrapper.find('.cursor-default');
+      await header.trigger('click');
+
+      // Still collapsed
+      expect((container.element as HTMLElement).style.display).toBe('none');
+    });
+
+    it('remains collapsed when setAllCollapsed(false) is called', async () => {
+      const content = '<COMMAND-NAME>/remote-control</COMMAND-NAME>\n<COMMAND-ARGS></COMMAND-ARGS>';
+      const wrapper = mount(XmlBubbleView, {
+        props: {
+          content,
+          defaultCollapsed: true,
+        },
+      });
+
+      // Expand all
+      (wrapper.vm as any).setAllCollapsed(false);
+      await wrapper.vm.$nextTick();
+
+      const containers = wrapper.findAll('.p-3.bg-\\[var\\(--bg-primary\\)\\]');
+      expect(containers.length).toBe(2);
+
+      // Non-empty tag should be expanded
+      expect((containers[0]!.element as HTMLElement).style.display).not.toBe('none');
+      // Empty tag should stay collapsed
+      expect((containers[1]!.element as HTMLElement).style.display).toBe('none');
+    });
+  });
 });

@@ -8,23 +8,37 @@
       <!-- If it's an XML tag bubble -->
       <template v-if="block.isTag">
         <div
-          @click="toggleCollapse(block.id)"
-          class="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-header)] hover:bg-[var(--bg-hover)] cursor-pointer select-none border-b border-[var(--border-color)] text-xs"
+          @click="toggleCollapse(block)"
+          class="flex items-center justify-between px-3 py-1.5 bg-[var(--bg-header)] select-none border-b border-[var(--border-color)] text-xs transition-colors"
+          :class="{
+            'hover:bg-[var(--bg-hover)] cursor-pointer': !isEmptyBlock(block),
+            'cursor-default opacity-80': isEmptyBlock(block),
+          }"
         >
           <div class="flex items-center gap-2 min-w-0 flex-1">
             <ChevronRight
+              v-if="!isEmptyBlock(block)"
               class="w-3.5 h-3.5 text-[var(--text-muted)] transition-transform duration-150 shrink-0"
               :class="{ 'rotate-90': !isCollapsed(block.id) }"
             />
+            <span v-else class="w-3.5 h-3.5 shrink-0" />
 
             <!-- Tag pill -->
             <span class="px-1.5 py-0.5 rounded font-mono text-[10px] uppercase font-bold tracking-wider border border-[var(--border-color)] text-[var(--text-primary)] shrink-0">
               &lt;{{ block.tagName }}&gt;
             </span>
 
+            <!-- If empty: show italic (empty) -->
+            <span
+              v-if="isEmptyBlock(block)"
+              class="text-[11px] text-[var(--text-muted)] italic font-mono"
+            >
+              (empty)
+            </span>
+
             <!-- If collapsed: show tag content preview in same single line -->
             <span
-              v-if="isCollapsed(block.id)"
+              v-else-if="isCollapsed(block.id)"
               class="text-xs text-[var(--text-muted)] truncate flex-1 font-mono"
             >
               {{ block.content.slice(0, 120).replace(/\n/g, ' ') }}
@@ -32,12 +46,12 @@
           </div>
 
           <span class="text-[10px] text-[var(--text-muted)] font-mono shrink-0 ml-2">
-            {{ block.content.length }} chars
+            {{ block.content.trim().length }} chars
           </span>
         </div>
 
-        <!-- Tag Content when not collapsed -->
-        <div v-show="!isCollapsed(block.id)" class="p-3 bg-[var(--bg-primary)]">
+        <!-- Tag Content when not collapsed and not empty -->
+        <div v-show="!isCollapsed(block.id) && !isEmptyBlock(block)" class="p-3 bg-[var(--bg-primary)]">
           <!-- Recursively check if tag content itself contains nested XML tags (like <SKILL>) -->
           <template v-if="hasNestedTags(block.content)">
             <XmlBubbleView
@@ -84,8 +98,17 @@ function registerNestedRef(el: any, idx: number) {
   }
 }
 
+function isEmptyBlock(block: XmlBlock): boolean {
+  return !block.content || block.content.trim().length === 0;
+}
+
 function initBlockCollapse(block: XmlBlock) {
-  if (!block.isTag || collapsedMap.value[block.id] !== undefined) return;
+  if (!block.isTag) return;
+  if (isEmptyBlock(block)) {
+    collapsedMap.value[block.id] = true;
+    return;
+  }
+  if (collapsedMap.value[block.id] !== undefined) return;
   collapsedMap.value[block.id] = isTagDefaultCollapsed(block.tagName, props.defaultCollapsed);
 }
 
@@ -104,14 +127,19 @@ function isCollapsed(id: string) {
   return collapsedMap.value[id] ?? false;
 }
 
-function toggleCollapse(id: string) {
-  collapsedMap.value[id] = !isCollapsed(id);
+function toggleCollapse(block: XmlBlock) {
+  if (isEmptyBlock(block)) return;
+  collapsedMap.value[block.id] = !isCollapsed(block.id);
 }
 
 function setAllCollapsed(collapse: boolean) {
   blocks.value.forEach((b) => {
     if (b.isTag) {
-      collapsedMap.value[b.id] = collapse;
+      if (isEmptyBlock(b)) {
+        collapsedMap.value[b.id] = true;
+      } else {
+        collapsedMap.value[b.id] = collapse;
+      }
     }
   });
   // Recursively collapse/expand nested XmlBubbleViews

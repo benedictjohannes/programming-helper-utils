@@ -1,5 +1,5 @@
 import { plugin } from "bun";
-import { parse, compileScript, compileTemplate } from "@vue/compiler-sfc";
+import { parse, compileScript, compileTemplate } from "vue/compiler-sfc";
 import { GlobalWindow } from "happy-dom";
 
 // 1. Setup Happy DOM globals
