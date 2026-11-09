@@ -151,7 +151,22 @@ fn parse_block_args(args: &[String]) -> Option<block::BlockOptions> {
     }
 }
 
+#[cfg(unix)]
+fn reset_sigpipe() {
+    unsafe {
+        unsafe extern "C" {
+            fn signal(sig: i32, handler: usize) -> usize;
+        }
+        const SIGPIPE: i32 = 13;
+        const SIG_DFL: usize = 0;
+        signal(SIGPIPE, SIG_DFL);
+    }
+}
+
 fn main() {
+    #[cfg(unix)]
+    reset_sigpipe();
+
     let args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
         print_usage();
