@@ -26,75 +26,7 @@ pub fn parse_rust_file(path: &str, content: &str) -> ParsedRustFile {
     let mut uses = Vec::new();
     let mut items = Vec::new();
 
-    for item in file.items() {
-        match item {
-            ast::Item::Use(u) => {
-                let text = clean_use_text(&u);
-                if !text.is_empty() {
-                    uses.push(text);
-                }
-            }
-            ast::Item::Fn(f) => {
-                if let Some(it) = process_fn(&f, None, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Struct(s) => {
-                if let Some(it) = process_struct(&s, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Enum(e) => {
-                if let Some(it) = process_enum(&e, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Trait(t) => {
-                if let Some(it) = process_trait(&t, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::TypeAlias(t) => {
-                if let Some(it) = process_type_alias(&t, None, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Const(c) => {
-                if let Some(it) = process_const(&c, None, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Static(s) => {
-                if let Some(it) = process_static(&s, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Module(m) => {
-                if let Some(it) = process_module(&m, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::MacroRules(m) => {
-                if let Some(it) = process_macro_rules(&m, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::MacroDef(m) => {
-                if let Some(it) = process_macro_def(&m, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Union(u) => {
-                if let Some(it) = process_union(&u, &line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Impl(imp) => {
-                process_impl(&imp, &line_index, &mut items);
-            }
-            _ => {}
-        }
-    }
+    collect_items(file.items(), &[], false, &line_index, &mut uses, &mut items);
 
     let lines = content.lines().map(|s| s.to_string()).collect();
 
@@ -105,6 +37,123 @@ pub fn parse_rust_file(path: &str, content: &str) -> ParsedRustFile {
         items,
         syntax_errors,
         lines,
+    }
+}
+
+/// Collect items from a file or inline module body. `mod_path` is the chain of
+/// enclosing inline module names (empty at file top level). Items inside an
+/// inline module get a `mod::`-prefixed qualified name, `depth = mod_path.len()`,
+/// and inherit `is_test` from a test module ancestor.
+fn collect_items(
+    ast_items: impl Iterator<Item = ast::Item>,
+    mod_path: &[String],
+    in_test_mod: bool,
+    line_index: &LineIndex,
+    uses: &mut Vec<String>,
+    items: &mut Vec<Item>,
+) {
+    let start = items.len();
+    let mut nested_ranges: Vec<(usize, usize)> = Vec::new();
+
+    for item in ast_items {
+        match item {
+            ast::Item::Use(u) => {
+                // Only file-level uses are reported by `glance -u`.
+                if mod_path.is_empty() {
+                    let text = clean_use_text(&u);
+                    if !text.is_empty() {
+                        uses.push(text);
+                    }
+                }
+            }
+            ast::Item::Fn(f) => {
+                if let Some(it) = process_fn(&f, None, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Struct(s) => {
+                if let Some(it) = process_struct(&s, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Enum(e) => {
+                if let Some(it) = process_enum(&e, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Trait(t) => {
+                if let Some(it) = process_trait(&t, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::TypeAlias(t) => {
+                if let Some(it) = process_type_alias(&t, None, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Const(c) => {
+                if let Some(it) = process_const(&c, None, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Static(s) => {
+                if let Some(it) = process_static(&s, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Module(m) => {
+                if let Some(it) = process_module(&m, line_index) {
+                    let child_is_test = in_test_mod || it.is_test;
+                    let mut child_path = mod_path.to_vec();
+                    child_path.push(it.name.clone());
+                    items.push(it);
+                    if let Some(il) = m.item_list() {
+                        let before = items.len();
+                        collect_items(il.items(), &child_path, child_is_test, line_index, uses, items);
+                        nested_ranges.push((before, items.len()));
+                    }
+                }
+            }
+            ast::Item::MacroRules(m) => {
+                if let Some(it) = process_macro_rules(&m, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::MacroDef(m) => {
+                if let Some(it) = process_macro_def(&m, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Union(u) => {
+                if let Some(it) = process_union(&u, line_index) {
+                    items.push(it);
+                }
+            }
+            ast::Item::Impl(imp) => {
+                process_impl(&imp, line_index, items);
+            }
+            _ => {}
+        }
+    }
+
+    // Apply this level's module prefix / depth / test inheritance to the items
+    // added directly at this level. Items from nested modules were already
+    // qualified by their own recursive call, so skip those ranges.
+    if mod_path.is_empty() {
+        return;
+    }
+    let prefix = mod_path.join("::");
+    let depth = mod_path.len();
+    for idx in start..items.len() {
+        if nested_ranges.iter().any(|&(lo, hi)| idx >= lo && idx < hi) {
+            continue;
+        }
+        let it = &mut items[idx];
+        it.qualified_name = format!("{}::{}", prefix, it.qualified_name);
+        it.depth = depth;
+        if in_test_mod {
+            it.is_test = true;
+        }
     }
 }
 
@@ -220,6 +269,7 @@ fn process_fn(f: &ast::Fn, receiver_type: Option<&str>, line_index: &LineIndex) 
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -272,6 +322,7 @@ fn process_struct(s: &ast::Struct, line_index: &LineIndex) -> Option<Item> {
         end_line,
         is_test,
         details,
+        depth: 0,
     })
 }
 
@@ -306,6 +357,7 @@ fn process_enum(e: &ast::Enum, line_index: &LineIndex) -> Option<Item> {
         end_line,
         is_test,
         details,
+        depth: 0,
     })
 }
 
@@ -371,6 +423,7 @@ fn process_trait(t: &ast::Trait, line_index: &LineIndex) -> Option<Item> {
         end_line,
         is_test,
         details,
+        depth: 0,
     })
 }
 
@@ -395,6 +448,7 @@ fn process_type_alias(t: &ast::TypeAlias, receiver: Option<&str>, line_index: &L
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -419,6 +473,7 @@ fn process_const(c: &ast::Const, receiver: Option<&str>, line_index: &LineIndex)
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -438,6 +493,7 @@ fn process_static(s: &ast::Static, line_index: &LineIndex) -> Option<Item> {
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -459,6 +515,7 @@ fn process_module(m: &ast::Module, line_index: &LineIndex) -> Option<Item> {
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -478,6 +535,7 @@ fn process_macro_rules(m: &ast::MacroRules, line_index: &LineIndex) -> Option<It
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -497,6 +555,7 @@ fn process_macro_def(m: &ast::MacroDef, line_index: &LineIndex) -> Option<Item> 
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 
@@ -518,6 +577,7 @@ fn process_union(u: &ast::Union, line_index: &LineIndex) -> Option<Item> {
         end_line,
         is_test,
         details: Vec::new(),
+        depth: 0,
     })
 }
 

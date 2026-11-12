@@ -88,6 +88,8 @@ pub fn collect_rust_files(inputs: &[String], include_tests: bool) -> Result<Vec<
                     }
                 }
             }
+        } else {
+            eprintln!("Warning: path not found: {}", input);
         }
     }
     files.sort();

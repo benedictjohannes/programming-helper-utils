@@ -53,6 +53,9 @@ pub struct Item {
     pub end_line: usize,
     pub is_test: bool,
     pub details: Vec<DetailMember>,
+    /// Inline-module nesting depth (0 = file top level). `glance` outlines
+    /// only depth 0; `block` resolves items at any depth.
+    pub depth: usize,
 }
 
 #[derive(Debug, Clone)]

@@ -131,6 +131,18 @@ fn find_matches<'a>(items: &[&'a Item], target: &str) -> Vec<&'a Item> {
         if !ci.is_empty() {
             return ci;
         }
+
+        // 3. Path-suffix match, so `Type::method` resolves to `inner::Type::method`
+        //    inside an inline module.
+        let suffix = format!("::{}", target_lower);
+        let suf: Vec<&Item> = items
+            .iter()
+            .copied()
+            .filter(|it| it.qualified_name.to_lowercase().ends_with(&suffix))
+            .collect();
+        if !suf.is_empty() {
+            return suf;
+        }
     } else {
         // Standalone target: match either name or qualified_name
 

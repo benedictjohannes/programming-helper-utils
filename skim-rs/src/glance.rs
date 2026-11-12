@@ -44,6 +44,10 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
             .items
             .iter()
             .filter(|item| {
+                // Outline stays top-level; inline module bodies are reachable via `block`.
+                if item.depth > 0 {
+                    return false;
+                }
                 if !opts.include_tests && item.is_test {
                     return false;
                 }

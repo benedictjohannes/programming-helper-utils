@@ -100,3 +100,66 @@ fn test_glance_filter_within_block() {
     assert!(!stdout.contains("WorkingConfig"));
     assert!(!stdout.contains("AnotherValidStruct"));
 }
+
+#[test]
+fn test_glance_missing_path_warns() {
+    let (code, _, stderr) = run_cmd(&["glance", "fixtures/does_not_exist"]);
+    assert_eq!(code, 1);
+    assert!(stderr.contains("Warning: path not found: fixtures/does_not_exist"));
+
+    // A missing path alongside a valid one still warns but succeeds.
+    let (code, stdout, stderr) = run_cmd(&["glance", "fixtures/nope.rs", "fixtures/tests.rs"]);
+    assert_eq!(code, 0);
+    assert!(stderr.contains("Warning: path not found: fixtures/nope.rs"));
+    assert!(stdout.contains("normal_function"));
+}
+
+#[test]
+fn test_block_resolves_items_in_test_module() {
+    // Not visible without -t
+    let (code, _, _) = run_cmd(&["block", "fixtures/nested_mods.rs", "test_helper_returns_one"]);
+    assert_eq!(code, 2);
+
+    for target in ["test_helper_returns_one", "tests::test_helper_returns_one"] {
+        let (code, stdout, _) = run_cmd(&["block", "fixtures/nested_mods.rs", target, "-t"]);
+        assert_eq!(code, 0, "target {}", target);
+        assert!(stdout.contains("(L23-L26)"), "target {}: {}", target, stdout);
+        assert!(!stdout.contains("shared_setup"));
+    }
+
+    // Non-#[test] helper inside a test module is still treated as test code.
+    let (code, _, _) = run_cmd(&["block", "fixtures/nested_mods.rs", "shared_setup"]);
+    assert_eq!(code, 2);
+    let (code, stdout, _) = run_cmd(&["block", "fixtures/nested_mods.rs", "shared_setup", "-t"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("42"));
+}
+
+#[test]
+fn test_block_resolves_items_in_inline_module() {
+    // Same name at top level and in `inner` -> ambiguous, listing qualified names.
+    let (code, _, stderr) = run_cmd(&["block", "fixtures/nested_mods.rs", "helper"]);
+    assert_eq!(code, 3);
+    assert!(stderr.contains("inner::helper"));
+
+    let (code, stdout, _) = run_cmd(&["block", "fixtures/nested_mods.rs", "inner::helper"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("(L14-L16)"));
+
+    // Type::method resolves without the module prefix, and with it.
+    for target in ["Widget::spin", "inner::Widget::spin"] {
+        let (code, stdout, _) = run_cmd(&["block", "fixtures/nested_mods.rs", target]);
+        assert_eq!(code, 0, "target {}", target);
+        assert!(stdout.contains("pub fn spin(&self)"));
+    }
+}
+
+#[test]
+fn test_glance_outline_stays_top_level() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/nested_mods.rs", "-t"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("mod inner"));
+    assert!(stdout.contains("mod tests"));
+    assert!(!stdout.contains("Widget"));
+    assert!(!stdout.contains("test_helper_returns_one"));
+}
