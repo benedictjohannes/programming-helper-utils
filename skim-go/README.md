@@ -54,6 +54,7 @@ flowchart TD
   - Tolerates inputs like `(*Context).JSON` or `*Context.JSON`.
 - **Exact-Case Precedence with Case-Insensitive Fallback**: Tolerates casing mismatches (`context.json`), while prioritizing exact matches if both `type Config` and `var config` coexist.
 - **Clear Ambiguity Diagnostics**: If a generic target matches multiple candidates, `skim-go` exits with code `3` and lists candidate locations with line spans and disambiguation guidance.
+- **Doc-Comment-Inclusive Spans, Comment-Free Outlines**: `L<start>-L<end>` spans start at the contiguous doc comment directly attached above a declaration (including per-spec docs inside grouped `type (...)`/`const (...)`/`var (...)` blocks), so `block` prints the doc comment with the code and a span can be fed straight to a line-range reader. Detached comments (separated by a blank line) and trailing comments are excluded. `glance` output (`-s`, `-d`) never contains comment text, including comments inside parameter lists, results, struct fields and interface methods.
 - **Blazing Fast**: Native compiled static binary with near-instant execution (<10ms).
 
 ---
@@ -128,65 +129,65 @@ Outline:
   L28-L28      const escapedColon
   L29-L29      const colon
   L30-L30      const backslash
-  L37-L37      const defaultReadHeaderTimeout
+  L33-L37      const defaultReadHeaderTimeout
   L40-L40      var default404Body
   L41-L41      var default405Body
   L44-L44      var defaultPlatform
   L46-L55      var defaultTrustedCIDRs
-  L58-L58      type HandlerFunc
-  L61-L61      type OptionFunc
-  L64-L64      type HandlersChain
-  L67-L72      func (c HandlersChain) Last
-  L75-L80      type RouteInfo
-  L83-L83      type RoutesInfo
-  L89-L89      const PlatformGoogleAppEngine
-  L92-L92      const PlatformCloudflare
-  L94-L94      const PlatformFlyIO
-  L99-L202     type Engine
+  L57-L58      type HandlerFunc
+  L60-L61      type OptionFunc
+  L63-L64      type HandlersChain
+  L66-L72      func (c HandlersChain) Last
+  L74-L80      type RouteInfo
+  L82-L83      type RoutesInfo
+  L87-L89      const PlatformGoogleAppEngine
+  L90-L92      const PlatformCloudflare
+  L93-L94      const PlatformFlyIO
+  L97-L202     type Engine
   L204-L204    var _
-  L215-L247    func New
-  L250-L255    func Default
+  L206-L247    func New
+  L249-L255    func Default
   L257-L264    func (engine *Engine) Handler
   L266-L270    func (engine *Engine) allocateContext
-  L274-L279    func (engine *Engine) getReadHeaderTimeout
-  L282-L285    func (engine *Engine) Delims
-  L288-L291    func (engine *Engine) SecureJsonPrefix
-  L295-L307    func (engine *Engine) LoadHTMLGlob
-  L311-L319    func (engine *Engine) LoadHTMLFiles
-  L323-L332    func (engine *Engine) LoadHTMLFS
-  L335-L341    func (engine *Engine) SetHTMLTemplate
-  L344-L346    func (engine *Engine) SetFuncMap
-  L349-L352    func (engine *Engine) NoRoute
-  L355-L358    func (engine *Engine) NoMethod
-  L363-L368    func (engine *Engine) Use
-  L371-L377    func (engine *Engine) With
+  L272-L279    func (engine *Engine) getReadHeaderTimeout
+  L281-L285    func (engine *Engine) Delims
+  L287-L291    func (engine *Engine) SecureJsonPrefix
+  L293-L307    func (engine *Engine) LoadHTMLGlob
+  L309-L319    func (engine *Engine) LoadHTMLFiles
+  L321-L332    func (engine *Engine) LoadHTMLFS
+  L334-L341    func (engine *Engine) SetHTMLTemplate
+  L343-L346    func (engine *Engine) SetFuncMap
+  L348-L352    func (engine *Engine) NoRoute
+  L354-L358    func (engine *Engine) NoMethod
+  L360-L368    func (engine *Engine) Use
+  L370-L377    func (engine *Engine) With
   L379-L381    func (engine *Engine) rebuild404Handlers
   L383-L385    func (engine *Engine) rebuild405Handlers
   L387-L409    func (engine *Engine) addRoute
-  L413-L418    func (engine *Engine) Routes
+  L411-L418    func (engine *Engine) Routes
   L420-L435    func iterate
   L437-L464    func (engine *Engine) prepareTrustedCIDRs
-  L474-L477    func (engine *Engine) SetTrustedProxies
-  L480-L482    func (engine *Engine) isUnsafeTrustedProxies
-  L485-L489    func (engine *Engine) parseTrustedProxies
-  L492-L502    func (engine *Engine) isTrustedProxy
-  L505-L524    func (engine *Engine) validateHeader
-  L527-L537    func updateRouteTree
-  L540-L544    func (engine *Engine) updateRouteTrees
-  L548-L558    func parseIP
-  L566-L583    func (engine *Engine) Run
-  L588-L604    func (engine *Engine) RunTLS
-  L609-L630    func (engine *Engine) RunUnix
-  L635-L653    func (engine *Engine) RunFd
-  L658-L669    func (engine *Engine) RunQUIC
-  L673-L688    func (engine *Engine) RunListener
-  L691-L704    func (engine *Engine) ServeHTTP
-  L709-L717    func (engine *Engine) HandleContext
+  L466-L477    func (engine *Engine) SetTrustedProxies
+  L479-L482    func (engine *Engine) isUnsafeTrustedProxies
+  L484-L489    func (engine *Engine) parseTrustedProxies
+  L491-L502    func (engine *Engine) isTrustedProxy
+  L504-L524    func (engine *Engine) validateHeader
+  L526-L537    func updateRouteTree
+  L539-L544    func (engine *Engine) updateRouteTrees
+  L546-L558    func parseIP
+  L560-L583    func (engine *Engine) Run
+  L585-L604    func (engine *Engine) RunTLS
+  L606-L630    func (engine *Engine) RunUnix
+  L632-L653    func (engine *Engine) RunFd
+  L655-L669    func (engine *Engine) RunQUIC
+  L671-L688    func (engine *Engine) RunListener
+  L690-L704    func (engine *Engine) ServeHTTP
+  L706-L717    func (engine *Engine) HandleContext
   L719-L789    func (engine *Engine) handleHTTPRequest
   L791-L791    var mimePlain
   L793-L808    func serveError
   L810-L824    func redirectTrailingSlash
-  L828-L835    func sanitizePathChars
+  L826-L835    func sanitizePathChars
   L837-L847    func redirectFixedPath
   L849-L861    func redirectRequest
 ```
@@ -221,27 +222,27 @@ Outline:
   L28-L28      const escapedColon = "\\:"
   L29-L29      const colon = ":"
   L30-L30      const backslash = "\\"
-  L37-L37      const defaultReadHeaderTimeout = 10 * time.Second
+  L33-L37      const defaultReadHeaderTimeout = 10 * time.Second
   L40-L40      var default404Body = []byte("404 page not found")
   L41-L41      var default405Body = []byte("405 method not allowed")
   L44-L44      var defaultPlatform string
-  L46-L55      var defaultTrustedCIDRs = []*net.IPNet{ ... }
-  L58-L58      type HandlerFunc func(*Context)
-  L61-L61      type OptionFunc func(*Engine)
-  L64-L64      type HandlersChain []HandlerFunc
-  L67-L72      func (c HandlersChain) Last() HandlerFunc
-  L75-L80      type RouteInfo struct
-  L83-L83      type RoutesInfo []RouteInfo
-  L89-L89      const PlatformGoogleAppEngine = "X-Appengine-Remote-Addr"
-  L92-L92      const PlatformCloudflare = "CF-Connecting-IP"
-  L94-L94      const PlatformFlyIO = "Fly-Client-IP"
-  L99-L202     type Engine struct
+  L46-L55      var defaultTrustedCIDRs = []*net.IPNet{ { IP: net.IP{0x0, 0x0, 0x0, 0x0}, Mask: net.IPMask{0x0, 0x0, 0x0, 0x0}, }, { IP: net.IP{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, Mask: net.IPMask{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, }, }
+  L57-L58      type HandlerFunc func(*Context)
+  L60-L61      type OptionFunc func(*Engine)
+  L63-L64      type HandlersChain []HandlerFunc
+  L66-L72      func (c HandlersChain) Last() HandlerFunc
+  L74-L80      type RouteInfo struct
+  L82-L83      type RoutesInfo []RouteInfo
+  L87-L89      const PlatformGoogleAppEngine = "X-Appengine-Remote-Addr"
+  L90-L92      const PlatformCloudflare = "CF-Connecting-IP"
+  L93-L94      const PlatformFlyIO = "Fly-Client-IP"
+  L97-L202     type Engine struct
   L204-L204    var _ IRouter = (*Engine)(nil)
-  L215-L247    func New(opts ...OptionFunc) *Engine
-  L250-L255    func Default(opts ...OptionFunc) *Engine
+  L206-L247    func New(opts ...OptionFunc) *Engine
+  L249-L255    func Default(opts ...OptionFunc) *Engine
   L257-L264    func (engine *Engine) Handler() http.Handler
   L266-L270    func (engine *Engine) allocateContext(maxParams uint16) *Context
-  L274-L279    func (engine *Engine) getReadHeaderTimeout() time.Duration
+  L272-L279    func (engine *Engine) getReadHeaderTimeout() time.Duration
   ...
 ```
 
@@ -254,33 +255,33 @@ skim-go glance gin.go -s -d
 === gin.go (861 lines) ===
 
 Outline:
-  ...
-  L75-L80      type RouteInfo struct
+  L27-L27      const defaultMultipartMemory = 32 << 20
+  L28-L28      const escapedColon = "\\:"
+  L29-L29      const colon = ":"
+  L30-L30      const backslash = "\\"
+  L33-L37      const defaultReadHeaderTimeout = 10 * time.Second
+  L40-L40      var default404Body = []byte("404 page not found")
+  L41-L41      var default405Body = []byte("405 method not allowed")
+  L44-L44      var defaultPlatform string
+  L46-L55      var defaultTrustedCIDRs = []*net.IPNet{ { IP: net.IP{0x0, 0x0, 0x0, 0x0}, Mask: net.IPMask{0x0, 0x0, 0x0, 0x0}, }, { IP: net.IP{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, Mask: net.IPMask{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, }, }
+  L57-L58      type HandlerFunc func(*Context)
+  L60-L61      type OptionFunc func(*Engine)
+  L63-L64      type HandlersChain []HandlerFunc
+  L66-L72      func (c HandlersChain) Last() HandlerFunc
+  L74-L80      type RouteInfo struct
                  | Method string
                  | Path string
                  | Handler string
                  | HandlerFunc HandlerFunc
-  L83-L83      type RoutesInfo []RouteInfo
-  L99-L202     type Engine struct
+  L82-L83      type RoutesInfo []RouteInfo
+  L87-L89      const PlatformGoogleAppEngine = "X-Appengine-Remote-Addr"
+  L90-L92      const PlatformCloudflare = "CF-Connecting-IP"
+  L93-L94      const PlatformFlyIO = "Fly-Client-IP"
+  L97-L202     type Engine struct
                  | RouterGroup
                  | routeTreesUpdated sync.Once
                  | RedirectTrailingSlash bool
                  | RedirectFixedPath bool
-                 | HandleMethodNotAllowed bool
-                 | ForwardedByClientIP bool
-                 | AppEngine bool
-                 | UseRawPath bool
-                 | UseEscapedPath bool
-                 | UnescapePathValues bool
-                 | RemoveExtraSlash bool
-                 | RemoteIPHeaders []string
-                 | TrustedPlatform string
-                 | MaxMultipartMemory int64
-                 | ReadHeaderTimeout time.Duration
-                 | UseH2C bool
-                 | ContextWithFallback bool
-                 | delims render.Delims
-                 | secureJSONPrefix string
   ...
 ```
 
@@ -295,19 +296,19 @@ Filters for any declaration containing `"Context"` across the entire project whi
 === context.go (1543 lines) ===
 
 Outline:
-  L46-L91      type Context struct
-  L97-L99      func (c *Context) Copy() *Context
-  L102-L104    func (c *Context) HandlerName() string
-  L107-L109    func (c *Context) HandlerNames() []string
-  L112-L114    func (c *Context) Handler() HandlerFunc
-  L117-L119    func (c *Context) FullPath() string
+  L59-L97      type Context struct
+  L120-L154    func (c *Context) Copy() *Context
+  L156-L160    func (c *Context) HandlerName() string
+  L162-L173    func (c *Context) HandlerNames() []string
+  L175-L178    func (c *Context) Handler() HandlerFunc
+  L180-L188    func (c *Context) FullPath() string
   ...
 
 === gin.go (861 lines) ===
 
 Outline:
   L266-L270    func (engine *Engine) allocateContext(maxParams uint16) *Context
-  L709-L717    func (engine *Engine) HandleContext(c *Context)
+  L706-L717    func (engine *Engine) HandleContext(c *Context)
 ```
 
 #### Example 5: Syntax Error Tolerance & In-Flight Diagnostics
@@ -353,7 +354,9 @@ Options:
 skim-go block context.go Context.JSON
 ```
 ```text
-=== context.go (L1259-L1261) ===
+=== context.go (L1257-L1261) ===
+ 1257 | // JSON serializes the given struct as JSON into the response body.
+ 1258 | // It also sets the Content-Type as "application/json".
  1259 | func (c *Context) JSON(code int, obj any) {
  1260 | 	c.Render(code, render.JSON{Data: obj})
  1261 | }
@@ -365,6 +368,8 @@ skim-go block context.go Context.JSON
 skim-go block context.go Context.JSON --raw
 ```
 ```go
+// JSON serializes the given struct as JSON into the response body.
+// It also sets the Content-Type as "application/json".
 func (c *Context) JSON(code int, obj any) {
 	c.Render(code, render.JSON{Data: obj})
 }
@@ -376,7 +381,8 @@ func (c *Context) JSON(code int, obj any) {
 skim-go block gin.go RouteInfo -d
 ```
 ```text
-=== gin.go (L75-L80) ===
+=== gin.go (L74-L80) ===
+   74 | // RouteInfo represents a request route's specification which contains method and path and its handler.
    75 | type RouteInfo struct {
    76 | 	Method      string
    77 | 	Path        string

@@ -237,7 +237,7 @@ func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile
 		switch d := decl.(type) {
 		case *ast.FuncDecl:
 			isMethod := d.Recv != nil && len(d.Recv.List) > 0
-			startLine := fset.Position(d.Pos()).Line
+			startLine := docStartLine(fset, d.Doc, d.Pos())
 			endLine := fset.Position(d.End()).Line
 			sig := cleanFuncSignature(fset, d)
 			blockText := getBlockText(lines, startLine, endLine)
@@ -285,10 +285,10 @@ func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile
 					}
 					var startLine, endLine int
 					if isGrouped {
-						startLine = fset.Position(ts.Pos()).Line
+						startLine = docStartLine(fset, ts.Doc, ts.Pos())
 						endLine = fset.Position(ts.End()).Line
 					} else {
-						startLine = fset.Position(d.Pos()).Line
+						startLine = docStartLine(fset, firstDoc(d.Doc, ts.Doc), d.Pos())
 						endLine = fset.Position(d.End()).Line
 					}
 					blockText := getBlockText(lines, startLine, endLine)
@@ -381,6 +381,9 @@ func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile
 						var startLine, endLine int
 						if isGrouped || len(vs.Names) > 1 {
 							startLine = fset.Position(nameIdent.Pos()).Line
+							if idx == 0 {
+								startLine = docStartLine(fset, firstDoc(vs.Doc, nil), nameIdent.Pos())
+							}
 							endLine = fset.Position(nameIdent.End()).Line
 							if len(vs.Values) > idx {
 								endLine = fset.Position(vs.Values[idx].End()).Line
@@ -388,7 +391,7 @@ func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile
 								endLine = fset.Position(vs.Type.End()).Line
 							}
 						} else {
-							startLine = fset.Position(d.Pos()).Line
+							startLine = docStartLine(fset, firstDoc(d.Doc, vs.Doc), d.Pos())
 							endLine = fset.Position(d.End()).Line
 						}
 						blockText := getBlockText(lines, startLine, endLine)
@@ -442,4 +445,20 @@ func ParseGoSource(filePath string, relPath string, content string) (*ParsedFile
 		IsTest:       testFile,
 		SyntaxErrors: syntaxErrors,
 	}, nil
+}
+
+// docStartLine returns the first line of the attached doc comment group, or
+// the line of pos when there is no attached doc comment.
+func docStartLine(fset *token.FileSet, doc *ast.CommentGroup, pos token.Pos) int {
+	if doc != nil && len(doc.List) > 0 {
+		return fset.Position(doc.Pos()).Line
+	}
+	return fset.Position(pos).Line
+}
+
+func firstDoc(a, b *ast.CommentGroup) *ast.CommentGroup {
+	if a != nil {
+		return a
+	}
+	return b
 }

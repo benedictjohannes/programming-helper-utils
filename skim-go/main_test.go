@@ -409,3 +409,72 @@ func TestSyntaxErrorResilience(t *testing.T) {
 		t.Errorf("expected WorkingConfig block body, got: %s", out)
 	}
 }
+
+func TestCommentsNotInOutlineAndSpansIncludeDocs(t *testing.T) {
+	for _, opts := range []GlanceOptions{
+		{Paths: []string{"testdata/comments.go"}},
+		{Paths: []string{"testdata/comments.go"}, Signatures: true},
+		{Paths: []string{"testdata/comments.go"}, Signatures: true, Details: true},
+	} {
+		out, _, code := captureOutput(func() int { return RunGlance(opts) })
+		if code != 0 {
+			t.Fatalf("expected code 0, got %d", code)
+		}
+		for _, bad := range []string{"//", "/*", "*/", "trailing", "inline", "the id", "the result", "before body", "is first", "Detached", "ctx"} {
+			if strings.Contains(out, bad) {
+				t.Errorf("comment text %q leaked into outline %+v:\n%s", bad, opts, out)
+			}
+		}
+	}
+
+	out, _, _ := captureOutput(func() int {
+		return RunGlance(GlanceOptions{Paths: []string{"testdata/comments.go"}, Signatures: true})
+	})
+	for _, want := range []string{
+		"L3-L10       type Server struct",
+		"L12-L18      type Store interface",
+		"L22-L22      func Plain()",    // detached comment (L20) excluded
+		"L24-L35      func Handle(",    // doc comment line 24
+		"L37-L38      func BlockDoc()", // /* */ doc
+		"L40-L41      func (s *Server) Run(",
+		"L44-L45      type Alpha struct", // grouped spec doc
+		"L47-L48      type Beta = string",
+		"L52-L53      const One = 1",
+		"L54-L55      const Two = 2",
+		"L58-L59      var Version",
+		"L61-L62      type Single int", // single un-parenthesized spec uses GenDecl doc
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("expected %q in outline, got:\n%s", want, out)
+		}
+	}
+}
+
+func TestBlockStartsAtDocComment(t *testing.T) {
+	cases := []struct{ target, header, first string }{
+		{"Handle", "(L24-L35)", "   24 | // Handle processes a request."},
+		{"Plain", "(L22-L22)", "   22 | func Plain() {}"},
+		{"Server.Run", "(L40-L41)", "   40 | // Method does work."},
+		{"Alpha", "(L44-L45)", "   44 | \t// Alpha is first."},
+		{"Two", "(L54-L55)", "   54 | \t// Two is two."},
+		{"Single", "(L61-L62)", "   61 | // Single is a lone type."},
+	}
+	for _, c := range cases {
+		out, _, code := captureOutput(func() int {
+			return RunBlock(BlockOptions{File: "testdata/comments.go", Target: c.target})
+		})
+		if code != 0 {
+			t.Fatalf("%s: expected code 0, got %d", c.target, code)
+		}
+		lines := strings.Split(out, "\n")
+		if !strings.Contains(lines[0], c.header) {
+			t.Errorf("%s: header %q missing in %q", c.target, c.header, lines[0])
+		}
+		if lines[1] != c.first {
+			t.Errorf("%s: first body line = %q, want %q", c.target, lines[1], c.first)
+		}
+		if strings.Contains(out, "Detached comment") {
+			t.Errorf("%s: detached comment must be excluded:\n%s", c.target, out)
+		}
+	}
+}
