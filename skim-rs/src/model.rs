@@ -39,6 +39,15 @@ pub struct DetailMember {
     pub is_method: bool,
 }
 
+/// The `impl` block a method/associated item belongs to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImplCtx {
+    /// e.g. `impl<T> Default for Foo<T>` (no body)
+    pub header: String,
+    pub start_line: usize,
+    pub end_line: usize,
+}
+
 #[derive(Debug, Clone)]
 pub struct Item {
     pub kind: ItemKind,
@@ -56,6 +65,8 @@ pub struct Item {
     /// Inline-module nesting depth (0 = file top level). `glance` outlines
     /// only depth 0; `block` resolves items at any depth.
     pub depth: usize,
+    /// Set for items declared inside an `impl` block.
+    pub impl_ctx: Option<ImplCtx>,
 }
 
 #[derive(Debug, Clone)]

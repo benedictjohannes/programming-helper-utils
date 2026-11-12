@@ -16,7 +16,7 @@ fn run_cmd(args: &[&str]) -> (i32, String, String) {
 fn test_glance_signatures_and_imports() {
     let (code, stdout, _) = run_cmd(&["glance", "fixtures/broken.rs", "-s", "-u"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("=== fixtures/broken.rs (13 lines) [! 1 syntax error] ==="));
+    assert!(stdout.contains("=== fixtures/broken.rs (12 lines) [! 1 syntax error] ==="));
     assert!(stdout.contains("Syntax Notice: L6: expected SEMICOLON"));
     assert!(stdout.contains("pub struct WorkingConfig"));
     assert!(stdout.contains("fn broken_function()"));
@@ -162,4 +162,65 @@ fn test_glance_outline_stays_top_level() {
     assert!(stdout.contains("mod tests"));
     assert!(!stdout.contains("Widget"));
     assert!(!stdout.contains("test_helper_returns_one"));
+}
+
+#[test]
+fn test_false_positive_test_detection() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/false_tests.rs"]);
+    assert_eq!(code, 0);
+    for name in ["greet", "testing_only", "test_connection", "not_test_only", "real_test"] {
+        let present = stdout.contains(&format!("fn {}", name));
+        assert_eq!(present, name != "real_test", "{name}: {stdout}");
+    }
+    assert!(!stdout.contains("inner_helper"));
+}
+
+#[test]
+fn test_line_count_ignores_trailing_newline() {
+    let (_, stdout, _) = run_cmd(&["glance", "fixtures/casing.rs"]);
+    let n = std::fs::read_to_string("fixtures/casing.rs").unwrap().lines().count();
+    assert!(stdout.contains(&format!("({} lines)", n)), "{stdout}");
+}
+
+#[test]
+fn test_glob_expansion() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/c*.rs"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("fixtures/casing.rs"));
+    assert!(!stdout.contains("fixtures/impls.rs"));
+}
+
+#[test]
+fn test_glance_groups_impl_members() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/impls.rs", "-s"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("impl User"), "{stdout}");
+    assert!(stdout.contains("impl Greeter for User"), "{stdout}");
+    assert!(stdout.contains("    pub fn new("), "{stdout}");
+}
+
+#[test]
+fn test_block_ambiguity_reports_impl_and_exit_3() {
+    let (code, _, stderr) = run_cmd(&["block", "fixtures/impls.rs", "User::dup"]);
+    assert_eq!(code, 3);
+    assert!(stderr.starts_with("Error: ambiguous target 'User::dup' matched 2 candidates"), "{stderr}");
+    assert!(stderr.contains("[impl Greeter for User]"), "{stderr}");
+    assert!(stderr.contains("Tip: Disambiguate with Type::method"));
+}
+
+#[test]
+fn test_include_tests_tags_test_files() {
+    let (_, stdout, _) = run_cmd(&["glance", "fixtures/tests.rs", "-t"]);
+    assert!(!stdout.contains("[test]")); // not a test *path*
+    let (_, stdout, _) = run_cmd(&["glance", "tests/integration_tests.rs", "-t"]);
+    assert!(stdout.contains("[test] ==="), "{stdout}");
+}
+
+#[test]
+fn test_block_raw_and_details() {
+    let (code, stdout, _) = run_cmd(&["block", "fixtures/casing.rs", "config", "--raw"]);
+    assert_eq!(code, 0);
+    assert!(!stdout.contains("==="));
+    let (_, stdout, _) = run_cmd(&["glance", "fixtures/impls.rs", "-d"]);
+    assert!(stdout.contains("| pub id: u64"), "{stdout}");
 }

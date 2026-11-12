@@ -5,7 +5,7 @@ use ra_ap_syntax::{
 use text_size::TextRange;
 
 use crate::fs::LineIndex;
-use crate::model::{DetailMember, Item, ItemKind, ParsedRustFile, SyntaxNotice};
+use crate::model::{DetailMember, ImplCtx, Item, ItemKind, ParsedRustFile, SyntaxNotice};
 
 pub fn parse_rust_file(path: &str, content: &str) -> ParsedRustFile {
     let line_index = LineIndex::new(content);
@@ -26,7 +26,11 @@ pub fn parse_rust_file(path: &str, content: &str) -> ParsedRustFile {
     let mut uses = Vec::new();
     let mut items = Vec::new();
 
-    collect_items(file.items(), &[], false, &line_index, &mut uses, &mut items);
+    let ctx = Ctx {
+        mod_path: &[],
+        in_test_mod: false,
+    };
+    collect_items(file.items(), &ctx, &line_index, &mut uses, &mut items);
 
     let lines = content.lines().map(|s| s.to_string()).collect();
 
@@ -40,119 +44,80 @@ pub fn parse_rust_file(path: &str, content: &str) -> ParsedRustFile {
     }
 }
 
-/// Collect items from a file or inline module body. `mod_path` is the chain of
-/// enclosing inline module names (empty at file top level). Items inside an
-/// inline module get a `mod::`-prefixed qualified name, `depth = mod_path.len()`,
-/// and inherit `is_test` from a test module ancestor.
+/// Lexical context of the item list currently being collected.
+struct Ctx<'a> {
+    /// Chain of enclosing inline module names (empty at file top level).
+    mod_path: &'a [String],
+    /// Inside a test module (items inherit `is_test`).
+    in_test_mod: bool,
+}
+
+impl Ctx<'_> {
+    /// Apply module prefix / depth / test inheritance and store the item.
+    fn add(&self, items: &mut Vec<Item>, it: Option<Item>) {
+        let Some(mut it) = it else { return };
+        if !self.mod_path.is_empty() {
+            it.qualified_name = format!("{}::{}", self.mod_path.join("::"), it.qualified_name);
+            it.depth = self.mod_path.len();
+        }
+        if self.in_test_mod {
+            it.is_test = true;
+        }
+        items.push(it);
+    }
+}
+
+/// Collect items from a file or inline module body. Items inside an inline
+/// module get a `mod::`-prefixed qualified name, `depth = mod_path.len()`, and
+/// inherit `is_test` from a test module ancestor.
 fn collect_items(
     ast_items: impl Iterator<Item = ast::Item>,
-    mod_path: &[String],
-    in_test_mod: bool,
+    ctx: &Ctx,
     line_index: &LineIndex,
     uses: &mut Vec<String>,
     items: &mut Vec<Item>,
 ) {
-    let start = items.len();
-    let mut nested_ranges: Vec<(usize, usize)> = Vec::new();
-
     for item in ast_items {
         match item {
             ast::Item::Use(u) => {
                 // Only file-level uses are reported by `glance -u`.
-                if mod_path.is_empty() {
+                if ctx.mod_path.is_empty() {
                     let text = clean_use_text(&u);
                     if !text.is_empty() {
                         uses.push(text);
                     }
                 }
             }
-            ast::Item::Fn(f) => {
-                if let Some(it) = process_fn(&f, None, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Struct(s) => {
-                if let Some(it) = process_struct(&s, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Enum(e) => {
-                if let Some(it) = process_enum(&e, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Trait(t) => {
-                if let Some(it) = process_trait(&t, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::TypeAlias(t) => {
-                if let Some(it) = process_type_alias(&t, None, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Const(c) => {
-                if let Some(it) = process_const(&c, None, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Static(s) => {
-                if let Some(it) = process_static(&s, line_index) {
-                    items.push(it);
-                }
-            }
+            ast::Item::Fn(f) => ctx.add(items, process_fn(&f, None, line_index)),
+            ast::Item::Struct(s) => ctx.add(items, process_struct(&s, line_index)),
+            ast::Item::Enum(e) => ctx.add(items, process_enum(&e, line_index)),
+            ast::Item::Trait(t) => ctx.add(items, process_trait(&t, line_index)),
+            ast::Item::TypeAlias(t) => ctx.add(items, process_type_alias(&t, None, line_index)),
+            ast::Item::Const(c) => ctx.add(items, process_const(&c, None, line_index)),
+            ast::Item::Static(s) => ctx.add(items, process_static(&s, line_index)),
             ast::Item::Module(m) => {
                 if let Some(it) = process_module(&m, line_index) {
-                    let child_is_test = in_test_mod || it.is_test;
-                    let mut child_path = mod_path.to_vec();
+                    let mut child_path = ctx.mod_path.to_vec();
                     child_path.push(it.name.clone());
-                    items.push(it);
+                    let child = Ctx {
+                        mod_path: &child_path,
+                        in_test_mod: ctx.in_test_mod || it.is_test,
+                    };
+                    ctx.add(items, Some(it));
                     if let Some(il) = m.item_list() {
-                        let before = items.len();
-                        collect_items(il.items(), &child_path, child_is_test, line_index, uses, items);
-                        nested_ranges.push((before, items.len()));
+                        collect_items(il.items(), &child, line_index, uses, items);
                     }
                 }
             }
-            ast::Item::MacroRules(m) => {
-                if let Some(it) = process_macro_rules(&m, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::MacroDef(m) => {
-                if let Some(it) = process_macro_def(&m, line_index) {
-                    items.push(it);
-                }
-            }
-            ast::Item::Union(u) => {
-                if let Some(it) = process_union(&u, line_index) {
-                    items.push(it);
-                }
-            }
+            ast::Item::MacroRules(m) => ctx.add(items, process_macro_rules(&m, line_index)),
+            ast::Item::MacroDef(m) => ctx.add(items, process_macro_def(&m, line_index)),
+            ast::Item::Union(u) => ctx.add(items, process_union(&u, line_index)),
             ast::Item::Impl(imp) => {
-                process_impl(&imp, line_index, items);
+                for it in process_impl(&imp, line_index) {
+                    ctx.add(items, Some(it));
+                }
             }
             _ => {}
-        }
-    }
-
-    // Apply this level's module prefix / depth / test inheritance to the items
-    // added directly at this level. Items from nested modules were already
-    // qualified by their own recursive call, so skip those ranges.
-    if mod_path.is_empty() {
-        return;
-    }
-    let prefix = mod_path.join("::");
-    let depth = mod_path.len();
-    for idx in start..items.len() {
-        if nested_ranges.iter().any(|&(lo, hi)| idx >= lo && idx < hi) {
-            continue;
-        }
-        let it = &mut items[idx];
-        it.qualified_name = format!("{}::{}", prefix, it.qualified_name);
-        it.depth = depth;
-        if in_test_mod {
-            it.is_test = true;
         }
     }
 }
@@ -164,14 +129,27 @@ fn node_lines(node: &SyntaxNode, line_index: &LineIndex) -> (usize, usize) {
     (start, end)
 }
 
+/// An attribute marks a test when it is `#[test]`-like (`#[test]`,
+/// `#[tokio::test]`, `#[rstest]`, `#[test_case(..)]`) or a `cfg` that enables
+/// `test` (`#[cfg(test)]`, `#[cfg(all(test, ..))]`). Only identifier tokens are
+/// inspected, so strings such as `feature = "testing"` or doc text never match,
+/// and `#[cfg(not(test))]` is regular code.
 fn is_test_item<N: HasAttrs>(item: &N) -> bool {
-    for attr in item.attrs() {
-        let text = attr.syntax().text().to_string();
-        if text.contains("test") {
-            return true;
+    item.attrs().any(|attr| {
+        let idents: Vec<String> = attr
+            .syntax()
+            .descendants_with_tokens()
+            .filter_map(|e| e.into_token())
+            .filter(|t| t.kind() == SyntaxKind::IDENT)
+            .map(|t| t.text().to_string())
+            .collect();
+        if idents.iter().any(|i| i == "not") {
+            return false;
         }
-    }
-    false
+        idents
+            .iter()
+            .any(|i| i == "test" || i == "rstest" || i == "test_case")
+    })
 }
 
 fn clean_use_text(u: &ast::Use) -> String {
@@ -243,7 +221,7 @@ fn format_signature_up_to_body(node: &SyntaxNode, body_range: Option<TextRange>)
 fn process_fn(f: &ast::Fn, receiver_type: Option<&str>, line_index: &LineIndex) -> Option<Item> {
     let name_node = f.name()?;
     let name = name_node.text().to_string();
-    let is_test = is_test_item(f) || name.starts_with("test_");
+    let is_test = is_test_item(f);
 
     let (start_line, end_line) = node_lines(f.syntax(), line_index);
 
@@ -270,6 +248,7 @@ fn process_fn(f: &ast::Fn, receiver_type: Option<&str>, line_index: &LineIndex) 
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -323,6 +302,7 @@ fn process_struct(s: &ast::Struct, line_index: &LineIndex) -> Option<Item> {
         is_test,
         details,
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -358,6 +338,7 @@ fn process_enum(e: &ast::Enum, line_index: &LineIndex) -> Option<Item> {
         is_test,
         details,
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -424,6 +405,7 @@ fn process_trait(t: &ast::Trait, line_index: &LineIndex) -> Option<Item> {
         is_test,
         details,
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -449,6 +431,7 @@ fn process_type_alias(t: &ast::TypeAlias, receiver: Option<&str>, line_index: &L
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -474,6 +457,7 @@ fn process_const(c: &ast::Const, receiver: Option<&str>, line_index: &LineIndex)
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -494,6 +478,7 @@ fn process_static(s: &ast::Static, line_index: &LineIndex) -> Option<Item> {
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -516,6 +501,7 @@ fn process_module(m: &ast::Module, line_index: &LineIndex) -> Option<Item> {
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -536,6 +522,7 @@ fn process_macro_rules(m: &ast::MacroRules, line_index: &LineIndex) -> Option<It
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -556,6 +543,7 @@ fn process_macro_def(m: &ast::MacroDef, line_index: &LineIndex) -> Option<Item> 
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -578,6 +566,7 @@ fn process_union(u: &ast::Union, line_index: &LineIndex) -> Option<Item> {
         is_test,
         details: Vec::new(),
         depth: 0,
+        impl_ctx: None,
     })
 }
 
@@ -585,13 +574,11 @@ fn process_union(u: &ast::Union, line_index: &LineIndex) -> Option<Item> {
 fn extract_type_name(ty: &ast::Type) -> String {
     match ty {
         ast::Type::PathType(p) => {
-            if let Some(path) = p.path() {
-                if let Some(segment) = path.segments().last() {
-                    if let Some(name_ref) = segment.name_ref() {
+            if let Some(path) = p.path()
+                && let Some(segment) = path.segments().last()
+                    && let Some(name_ref) = segment.name_ref() {
                         return name_ref.text().to_string();
                     }
-                }
-            }
             p.syntax().text().to_string()
         }
         ast::Type::RefType(r) => {
@@ -605,40 +592,34 @@ fn extract_type_name(ty: &ast::Type) -> String {
     }
 }
 
-fn process_impl(imp: &ast::Impl, line_index: &LineIndex, items: &mut Vec<Item>) {
+fn process_impl(imp: &ast::Impl, line_index: &LineIndex) -> Vec<Item> {
+    let mut out = Vec::new();
     let is_test = is_test_item(imp);
-    let self_ty = imp.self_ty();
-    let type_name = self_ty.as_ref().map(extract_type_name);
+    let type_name = imp.self_ty().as_ref().map(extract_type_name);
+    let recv = type_name.as_deref();
 
-    if let Some(ail) = imp.assoc_item_list() {
-        for assoc in ail.assoc_items() {
-            match assoc {
-                ast::AssocItem::Fn(f) => {
-                    if let Some(mut it) = process_fn(&f, type_name.as_deref(), line_index) {
-                        if is_test {
-                            it.is_test = true;
-                        }
-                        items.push(it);
-                    }
-                }
-                ast::AssocItem::Const(c) => {
-                    if let Some(mut it) = process_const(&c, type_name.as_deref(), line_index) {
-                        if is_test {
-                            it.is_test = true;
-                        }
-                        items.push(it);
-                    }
-                }
-                ast::AssocItem::TypeAlias(ta) => {
-                    if let Some(mut it) = process_type_alias(&ta, type_name.as_deref(), line_index) {
-                        if is_test {
-                            it.is_test = true;
-                        }
-                        items.push(it);
-                    }
-                }
-                ast::AssocItem::MacroCall(_) => {}
-            }
+    let Some(ail) = imp.assoc_item_list() else {
+        return out;
+    };
+    let (start_line, end_line) = node_lines(imp.syntax(), line_index);
+    let impl_ctx = ImplCtx {
+        header: format_signature_up_to_body(imp.syntax(), Some(ail.syntax().text_range())),
+        start_line,
+        end_line,
+    };
+
+    for assoc in ail.assoc_items() {
+        let it = match assoc {
+            ast::AssocItem::Fn(f) => process_fn(&f, recv, line_index),
+            ast::AssocItem::Const(c) => process_const(&c, recv, line_index),
+            ast::AssocItem::TypeAlias(ta) => process_type_alias(&ta, recv, line_index),
+            ast::AssocItem::MacroCall(_) => None,
+        };
+        if let Some(mut it) = it {
+            it.is_test |= is_test;
+            it.impl_ctx = Some(impl_ctx.clone());
+            out.push(it);
         }
     }
+    out
 }

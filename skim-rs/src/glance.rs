@@ -1,5 +1,5 @@
-use crate::fs::collect_rust_files;
-use crate::model::Item;
+use crate::fs::{collect_rust_files, is_test_file_path};
+use crate::model::{ImplCtx, Item};
 use crate::parser::parse_rust_file;
 
 pub struct GlanceOptions {
@@ -77,7 +77,16 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
             String::new()
         };
 
-        println!("=== {} ({} lines){} ===", parsed.path, parsed.total_lines, error_tag);
+        let test_tag = if opts.include_tests && is_test_file_path(file_path) {
+            " [test]"
+        } else {
+            ""
+        };
+
+        println!(
+            "=== {} ({} lines){}{} ===",
+            parsed.path, parsed.total_lines, test_tag, error_tag
+        );
 
         // Print syntax error notices directly under the header
         for err in &parsed.syntax_errors {
@@ -100,24 +109,29 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
         // Print outline
         println!();
         println!("Outline:");
+        let mut current_impl: Option<&ImplCtx> = None;
         for item in &visible_items {
-            let header_str = if opts.signatures {
-                &item.signature
-            } else {
-                &item.name
-            };
+            // Group impl members under a single `impl ...` line.
+            if item.impl_ctx.as_ref() != current_impl {
+                current_impl = item.impl_ctx.as_ref();
+                if let Some(ic) = current_impl {
+                    let span = format!("L{}-L{}", ic.start_line, ic.end_line);
+                    println!("  {:<12} {}", span, ic.header);
+                }
+            }
+            let indent = if item.impl_ctx.is_some() { "  " } else { "" };
 
             let span = format!("L{}-L{}", item.start_line, item.end_line);
             if opts.signatures {
-                println!("  {:<12} {}", span, header_str);
+                println!("  {:<12} {}{}", span, indent, item.signature);
             } else {
-                println!("  {:<12} {} {}", span, item.kind.as_str(), header_str);
+                println!("  {:<12} {}{} {}", span, indent, item.kind.as_str(), item.name);
             }
 
             // Print details (-d)
-            if opts.details && !item.details.is_empty() {
+            if opts.details {
                 for detail in &item.details {
-                    println!("      | {}", detail.signature);
+                    println!("      | {}{}", indent, detail.signature);
                 }
             }
         }

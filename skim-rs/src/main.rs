@@ -18,11 +18,13 @@ glance: Outline structure, signatures, and line ranges across files/directories.
   Usage: skim-rs glance [options] <path>...
   Arguments:
     <path>...              One or more .rs files, directories, or globs
+                           (target/ and dot-directories are skipped)
   Options:
     -s, --signatures       Show declarations & types without function bodies
     -d, --details          Show struct fields, interface members, and enum variants
     -u, --uses, --imports  Display top-level imports and uses
-    -f, --filter <text>    Filter items containing <text> (case-insensitive, repeatable)
+    -f, --filter <text>    Keep items whose name, signature or body contains <text>
+                           (case-insensitive, repeatable = AND)
     -t, --include-tests    Include test files, test modules, and test functions
   Examples:
     skim-rs glance axum/src/lib.rs

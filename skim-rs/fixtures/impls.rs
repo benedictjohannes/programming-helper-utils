@@ -24,3 +24,11 @@ impl Greeter for User {
         format!("Hello, {}", self.name)
     }
 }
+
+impl User {
+    pub fn dup(&self) {}
+}
+
+impl Greeter for User {
+    fn dup(&self) {}
+}

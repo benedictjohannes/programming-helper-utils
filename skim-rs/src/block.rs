@@ -38,25 +38,31 @@ pub fn run_block(opts: BlockOptions) -> i32 {
     let matches = find_matches(&candidates, &opts.target);
 
     if matches.is_empty() {
-        eprintln!("Error: block '{}' not found in {}", opts.target, opts.file);
+        eprintln!("Error: target '{}' not found in {}", opts.target, opts.file);
         return 2;
     }
 
     if matches.len() > 1 {
         eprintln!(
-            "Ambiguous target '{}' matched {} candidates in {}:",
+            "Error: ambiguous target '{}' matched {} candidates in {}:",
             opts.target,
             matches.len(),
             opts.file
         );
         for (i, m) in matches.iter().enumerate() {
+            let origin = m
+                .impl_ctx
+                .as_ref()
+                .map(|ic| format!("  [{}]", ic.header))
+                .unwrap_or_default();
             eprintln!(
-                "  {}) L{}-L{}   {} {}",
+                "  {}) L{}-L{}   {} {}{}",
                 i + 1,
                 m.start_line,
                 m.end_line,
                 m.kind.as_str(),
-                m.qualified_name
+                m.qualified_name,
+                origin
             );
         }
         eprintln!();

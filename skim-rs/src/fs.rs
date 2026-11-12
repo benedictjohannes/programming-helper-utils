@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 #[derive(Debug, Clone)]
 pub struct LineIndex {
     line_starts: Vec<u32>,
+    text_len: u32,
 }
 
 impl LineIndex {
@@ -13,7 +14,10 @@ impl LineIndex {
                 line_starts.push((i + 1) as u32);
             }
         }
-        Self { line_starts }
+        Self {
+            line_starts,
+            text_len: text.len() as u32,
+        }
     }
 
     /// Convert byte offset (0-indexed) to 1-indexed (line, col).
@@ -36,60 +40,100 @@ impl LineIndex {
         }
     }
 
+    /// Number of lines; a trailing newline does not start a new line.
     pub fn line_count(&self) -> usize {
-        self.line_starts.len()
+        match self.line_starts.last() {
+            Some(&last) if last == self.text_len => self.line_starts.len() - 1,
+            _ => self.line_starts.len(),
+        }
     }
 }
 
 pub fn is_test_file_path(path: &Path) -> bool {
-    let path_str = path.to_string_lossy();
-    if path_str.contains("/tests/") || path_str.starts_with("tests/") {
+    let normalized = path.to_string_lossy().replace('\\', "/");
+    if normalized.contains("/tests/") || normalized.starts_with("tests/") {
         return true;
     }
-    if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
-        if file_name.ends_with("_test.rs") {
-            return true;
-        }
+    path.file_name()
+        .and_then(|s| s.to_str())
+        .is_some_and(|n| n.ends_with("_test.rs"))
+}
+
+fn has_glob_chars(s: &str) -> bool {
+    s.contains(['*', '?', '['])
+}
+
+/// Expand one CLI input into concrete paths: an existing path is used as is;
+/// otherwise glob metacharacters are expanded (for shells that do not).
+fn expand_input(input: &str) -> Vec<PathBuf> {
+    let path = Path::new(input);
+    if path.exists() {
+        return vec![path.to_path_buf()];
     }
-    false
+    if has_glob_chars(input)
+        && let Ok(paths) = glob::glob(input) {
+            let found: Vec<PathBuf> = paths.filter_map(|p| p.ok()).collect();
+            if !found.is_empty() {
+                return found;
+            }
+        }
+    eprintln!("Warning: path not found: {}", input);
+    Vec::new()
+}
+
+/// Skip build output (`target/` next to a `Cargo.toml`) and hidden directories
+/// below the walk root.
+fn is_pruned_dir(e: &walkdir::DirEntry, include_tests: bool) -> bool {
+    if !e.file_type().is_dir() {
+        return false;
+    }
+    let name = e.file_name().to_string_lossy();
+    if !include_tests && name == "tests" {
+        return true;
+    }
+    if e.depth() == 0 {
+        return false;
+    }
+    if name.starts_with('.') {
+        return true;
+    }
+    name == "target"
+        && e.path()
+            .parent()
+            .is_some_and(|p| p.join("Cargo.toml").is_file())
 }
 
 pub fn collect_rust_files(inputs: &[String], include_tests: bool) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut files = Vec::new();
     for input in inputs {
-        let path = Path::new(input);
-        if path.is_file() {
-            if !include_tests && is_test_file_path(path) {
-                continue;
-            }
-            files.push(path.to_path_buf());
-        } else if path.is_dir() {
-            for entry in walkdir::WalkDir::new(path)
-                .follow_links(true)
-                .into_iter()
-                .filter_entry(|e| {
-                    if !include_tests {
-                        let name = e.file_name().to_string_lossy();
-                        if e.file_type().is_dir() && name == "tests" {
-                            return false;
-                        }
-                    }
-                    true
-                })
-                .filter_map(|e| e.ok())
-            {
-                if entry.file_type().is_file() {
-                    let p = entry.path();
-                    if p.extension().map_or(false, |ext| ext == "rs") {
-                        if !include_tests && is_test_file_path(p) {
+        for path in expand_input(input) {
+            if path.is_file() {
+                if !include_tests && is_test_file_path(&path) {
+                    continue;
+                }
+                files.push(path);
+            } else if path.is_dir() {
+                let walker = walkdir::WalkDir::new(&path)
+                    .follow_links(true)
+                    .into_iter()
+                    .filter_entry(|e| !is_pruned_dir(e, include_tests));
+                for entry in walker {
+                    let entry = match entry {
+                        Ok(e) => e,
+                        Err(err) => {
+                            eprintln!("Warning: {}", err);
                             continue;
                         }
+                    };
+                    let p = entry.path();
+                    if entry.file_type().is_file()
+                        && p.extension().is_some_and(|ext| ext == "rs")
+                        && (include_tests || !is_test_file_path(p))
+                    {
                         files.push(p.to_path_buf());
                     }
                 }
             }
-        } else {
-            eprintln!("Warning: path not found: {}", input);
         }
     }
     files.sort();
