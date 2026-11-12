@@ -74,7 +74,7 @@ describe("Classes & Methods (fixtures/classes.ts)", () => {
     expect(res.stdout).toContain("method public async getUser(id: string): Promise<{ id: string; name: string }>");
     expect(res.stdout).toContain("method public get database(): string");
     expect(res.stdout).toContain("method public set database(val: string)");
-    expect(res.stdout).toContain("method public boundAction = (action: string): void =>");
+    expect(res.stdout).toContain("method public boundAction = (action: string): void");
   });
 
   it("shows fields when -d is passed", () => {
@@ -228,5 +228,59 @@ describe("Syntax Error Resilience (fixtures/broken.ts)", () => {
     expect(res.stdout).not.toContain("[!");
     expect(res.stdout).not.toContain("Syntax Notice");
     expect(res.stdout).toContain("export interface WorkingConfig {");
+  });
+});
+
+describe("Comments & Line Spans (fixtures/comments.ts)", () => {
+  const file = path.join(FIXTURES_DIR, "comments.ts");
+  const MARKERS = [
+    "JSDOC_", "TP_COMMENT", "TRAILING_MEMBER", "LINE_MEMBER_COMMENT", "INLINE_TYPE_COMMENT",
+    "PARAM_IN_SIG", "DECORATOR_TRAILING", "FIELD_TRAILING", "COMMENT_IN_PARAMS", "AFTER_ID",
+    "LAST_PARAM", "BEFORE_RETURN", "BEFORE_BRACE", "BODY_COMMENT", "ARROW_PARAM", "ENUM_TRAILING",
+    "ENUM_LINE", "ENUM_INLINE", "INLINE_PARAM", "AFTER_BRACE", "ARROW_INLINE", "DETACHED_", "plain comment",
+  ];
+
+  for (const flags of [[], ["-s"], ["-s", "-d"], ["-d"]]) {
+    it(`glance ${flags.join(" ") || "(default)"} output contains no comment text`, () => {
+      const res = runCli(["glance", file, ...flags]);
+      expect(res.status).toBe(0);
+      for (const m of MARKERS) expect(res.stdout).not.toContain(m);
+      expect(res.stdout).not.toContain("/*");
+      expect(res.stdout).not.toContain("//");
+      expect(res.stdout).not.toContain("@Log");
+    });
+  }
+
+  it("rebuilds signatures from code tokens (no swallowed code, tidy spacing)", () => {
+    const res = runCli(["glance", file, "-s", "-d"]);
+    expect(res.stdout).toContain("export interface Config<T>");
+    expect(res.stdout).toContain("| name?: string;");
+    expect(res.stdout).toContain("| run(x: number): void;");
+    expect(res.stdout).toContain("method public async fetch(id: string, other: number): Promise<string>");
+    expect(res.stdout).toContain("| Green = 2");
+    expect(res.stdout).toContain("export function add(a: number, b: number): number");
+    expect(res.stdout).toContain("export const twice = (x: number): number");
+    expect(res.stdout).not.toContain("=>");
+  });
+
+  it("spans start at the attached JSDoc/decorators, not at detached comments", () => {
+    const res = runCli(["glance", file, "-s"]);
+    expect(res.stdout).toMatch(/L3-L12\s+export interface Config/);
+    expect(res.stdout).toMatch(/L16-L37\s+export class Service/);
+    expect(res.stdout).toMatch(/L23-L32\s+method public async fetch/);
+    expect(res.stdout).toMatch(/L55-L56\s+export const twice/);
+    expect(res.stdout).toMatch(/L60-L62\s+export function plain/);
+  });
+
+  it("block output begins with the JSDoc and excludes detached comments", () => {
+    const res = runCli(["block", file, "Config"]);
+    expect(res.stdout).toContain("=== fixtures/comments.ts (L3-L12) ===");
+    expect(res.stdout).toContain("3 | /**");
+    expect(res.stdout).not.toContain("DETACHED_FILE_HEADER");
+    const m = runCli(["block", file, "Service.fetch", "--raw"]);
+    expect(m.stdout.startsWith("  /** JSDOC_METHOD fetches */\n  @Log()\n")).toBe(true);
+    expect(m.stdout).not.toContain("plain comment");
+    const p = runCli(["block", file, "plain", "--raw"]);
+    expect(p.stdout.startsWith("export function plain")).toBe(true);
   });
 });

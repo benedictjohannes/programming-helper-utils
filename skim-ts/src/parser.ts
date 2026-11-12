@@ -55,8 +55,33 @@ export function isTestCall(node: ts.Node): { isTest: boolean; testKind: string; 
   return { isTest: false, testKind: '', testName: '' };
 }
 
+/**
+ * Start position of a declaration including its attached JSDoc comment block.
+ * Only contiguous comments (no blank line between them and the declaration) count;
+ * the span starts at the earliest JSDoc (`/** ... *\/`) in that attached chain.
+ * Plain `//` and `/* *\/` comments are never pulled in on their own, and detached
+ * comments (separated by a blank line) are excluded.
+ */
+function getSpanStart(node: ts.Node, sf: ts.SourceFile): number {
+  const nodeStart = node.getStart(sf, false);
+  const ranges = ts.getLeadingCommentRanges(sf.text, node.pos);
+  if (!ranges || ranges.length === 0) return nodeStart;
+  let spanStart = nodeStart;
+  let boundary = nodeStart;
+  for (let i = ranges.length - 1; i >= 0; i--) {
+    const r = ranges[i]!;
+    const gap = sf.text.slice(r.end, boundary);
+    if ((gap.match(/\n/g) || []).length > 1) break; // blank line: detached
+    boundary = r.pos;
+    if (sf.text.startsWith('/**', r.pos) && !sf.text.startsWith('/**/', r.pos)) {
+      spanStart = r.pos;
+    }
+  }
+  return spanStart;
+}
+
 function getNodeLines(node: ts.Node, sf: ts.SourceFile) {
-  const startPos = node.getStart(sf, false);
+  const startPos = getSpanStart(node, sf);
   const endPos = node.getEnd();
   const adjustedEndPos =
     endPos > startPos && (sf.text[endPos - 1] === '\n' || sf.text[endPos - 1] === '\r')
@@ -67,24 +92,78 @@ function getNodeLines(node: ts.Node, sf: ts.SourceFile) {
   return { startLine, endLine, startPos, endPos };
 }
 
+function collectLeaves(node: ts.Node, sf: ts.SourceFile, from: number, to: number, out: ts.Node[]) {
+  for (const child of node.getChildren(sf)) {
+    if (child.kind === ts.SyntaxKind.Decorator) continue;
+    if (child.kind >= ts.SyntaxKind.FirstJSDocNode && child.kind <= ts.SyntaxKind.LastJSDocNode) continue;
+    const cs = child.getStart(sf, false);
+    const ce = child.getEnd();
+    if (ce <= from || cs >= to) continue;
+    if (child.getChildCount(sf) === 0) {
+      if (ce > cs) out.push(child);
+    } else {
+      collectLeaves(child, sf, from, to, out);
+    }
+  }
+}
+
+/**
+ * Rebuild the text of [from, to) of `node` from code tokens only: comments and
+ * decorators are dropped, whitespace is collapsed to one space, and spacing left
+ * behind by a removed comment or a line break is tidied ("( x" -> "(x", "x )" -> "x)").
+ */
+function cleanRange(node: ts.Node, sf: ts.SourceFile, from: number, to: number): string {
+  const leaves: ts.Node[] = [];
+  if (node.getChildCount(sf) === 0) return sf.text.slice(node.getStart(sf, false), node.getEnd()).trim();
+  collectLeaves(node, sf, from, to, leaves);
+  let out = '';
+  let prevEnd = -1;
+  let prevText = '';
+  for (const leaf of leaves) {
+    const start = leaf.getStart(sf, false);
+    const text = sf.text.slice(start, leaf.getEnd());
+    if (prevEnd >= 0) {
+      const gap = sf.text.slice(prevEnd, start);
+      if (gap !== '') {
+        const tidy = !/^[ \t]*$/.test(gap);
+        if (tidy && (prevText === '(' || prevText === '[' || [')', ']', '>', ',', ';'].includes(text))) {
+          // no space
+        } else {
+          out += ' ';
+        }
+      }
+    }
+    out += text;
+    prevEnd = leaf.getEnd();
+    prevText = text;
+  }
+  return out.trim();
+}
+
+function cleanText(node: ts.Node, sf: ts.SourceFile): string {
+  return cleanRange(node, sf, node.getStart(sf, false), node.getEnd());
+}
+
+/** Position where a header ends: body / arrow `=>` / opening brace / semicolon. */
+function headerEnd(node: ts.Node, sf: ts.SourceFile): number {
+  if (ts.isArrowFunction(node)) return node.equalsGreaterThanToken.getStart(sf, false);
+  const body = (node as any).body as ts.Node | undefined;
+  if (body) return body.getStart(sf, false);
+  for (const child of node.getChildren(sf)) {
+    if (child.kind === ts.SyntaxKind.OpenBraceToken || child.kind === ts.SyntaxKind.SemicolonToken) {
+      return child.getStart(sf, false);
+    }
+  }
+  return node.getEnd();
+}
+
 function extractSignatureHeader(node: ts.Node, sf: ts.SourceFile): string {
-  const nodeStart = node.getStart(sf, false);
+  return cleanRange(node, sf, node.getStart(sf, false), headerEnd(node, sf));
+}
 
-  if ('body' in node && (node as any).body) {
-    const bodyStart = (node as any).body.getStart(sf, false);
-    return sf.text.slice(nodeStart, bodyStart).trim().replace(/\s+/g, ' ');
-  }
-
-  const text = sf.text.slice(nodeStart, node.getEnd());
-  const braceIdx = text.indexOf('{');
-  const semiIdx = text.indexOf(';');
-  if (braceIdx !== -1 && (semiIdx === -1 || braceIdx < semiIdx)) {
-    return text.slice(0, braceIdx).trim().replace(/\s+/g, ' ');
-  } else if (semiIdx !== -1) {
-    return text.slice(0, semiIdx).trim().replace(/\s+/g, ' ');
-  }
-  const firstLine = text.split(/\r?\n/)[0] || '';
-  return firstLine.trim().replace(/\s+/g, ' ');
+/** Header of a node whose function initializer's body/arrow ends the signature. */
+function extractFnInitHeader(node: ts.Node, init: ts.ArrowFunction | ts.FunctionExpression, sf: ts.SourceFile): string {
+  return cleanRange(node, sf, node.getStart(sf, false), headerEnd(init, sf));
 }
 
 function formatVariableHeader(node: ts.VariableStatement, sf: ts.SourceFile): { header: string; isFn: boolean } {
@@ -102,24 +181,22 @@ function formatVariableHeader(node: ts.VariableStatement, sf: ts.SourceFile): { 
     return { header: `${prefix}${kw}`, isFn: false };
   }
 
-  const name = decl.name.getText(sf);
+  const name = cleanText(decl.name, sf);
 
   if (decl.initializer && (ts.isArrowFunction(decl.initializer) || ts.isFunctionExpression(decl.initializer))) {
     const init = decl.initializer;
     if (init.body) {
-      const bodyStart = init.body.getStart(sf, false);
-      const text = sf.text.slice(node.getStart(sf, false), bodyStart).trim().replace(/\s+/g, ' ');
-      return { header: text, isFn: true };
+      return { header: extractFnInitHeader(node, init, sf), isFn: true };
     }
   }
 
   if (decl.type) {
-    const typeText = decl.type.getText(sf).trim().replace(/\s+/g, ' ');
+    const typeText = cleanText(decl.type, sf);
     return { header: `${prefix}${kw} ${name}: ${typeText}`, isFn: false };
   }
 
   if (decl.initializer) {
-    const initText = decl.initializer.getText(sf).trim().replace(/\s+/g, ' ');
+    const initText = cleanText(decl.initializer, sf);
     if (initText.length < 35 && !initText.includes('{')) {
       return { header: `${prefix}${kw} ${name} = ${initText}`, isFn: false };
     }
@@ -133,10 +210,10 @@ function formatTypeAliasHeader(node: ts.TypeAliasDeclaration, sf: ts.SourceFile)
   const prefix = isExport ? 'export type ' : 'type ';
   const name = node.name.text;
   const typeParams = node.typeParameters
-    ? `<${node.typeParameters.map((p) => p.getText(sf)).join(', ')}>`
+    ? `<${node.typeParameters.map((p) => cleanText(p, sf)).join(', ')}>`
     : '';
 
-  const typeText = node.type.getText(sf).trim().replace(/\s+/g, ' ');
+  const typeText = cleanText(node.type, sf);
   if (!typeText.includes('{') && typeText.length < 60) {
     return `${prefix}${name}${typeParams} = ${typeText}`;
   }
@@ -226,7 +303,7 @@ export function parseSourceFile(
     if (node.kind === ts.SyntaxKind.EndOfFileToken) return;
 
     if (ts.isImportDeclaration(node)) {
-      const impText = node.getText(sf).trim().replace(/\s+/g, ' ');
+      const impText = cleanText(node, sf);
       imports.push(impText);
       return;
     }
@@ -278,7 +355,7 @@ export function parseSourceFile(
             isTest: false,
           });
         } else if (ts.isMethodDeclaration(member)) {
-          const mName = member.name.getText(sf);
+          const mName = cleanText(member.name, sf);
           const mLines = getNodeLines(member, sf);
           const mHeader = extractSignatureHeader(member, sf);
           classItem.children.push({
@@ -295,7 +372,7 @@ export function parseSourceFile(
             isTest: false,
           });
         } else if (ts.isGetAccessorDeclaration(member)) {
-          const mName = member.name.getText(sf);
+          const mName = cleanText(member.name, sf);
           const mLines = getNodeLines(member, sf);
           const mHeader = extractSignatureHeader(member, sf);
           classItem.children.push({
@@ -312,7 +389,7 @@ export function parseSourceFile(
             isTest: false,
           });
         } else if (ts.isSetAccessorDeclaration(member)) {
-          const mName = member.name.getText(sf);
+          const mName = cleanText(member.name, sf);
           const mLines = getNodeLines(member, sf);
           const mHeader = extractSignatureHeader(member, sf);
           classItem.children.push({
@@ -329,7 +406,7 @@ export function parseSourceFile(
             isTest: false,
           });
         } else if (ts.isPropertyDeclaration(member)) {
-          const pName = member.name.getText(sf);
+          const pName = cleanText(member.name, sf);
           const pLines = getNodeLines(member, sf);
 
           // If the property is an arrow function or function expression, treat as method
@@ -338,13 +415,7 @@ export function parseSourceFile(
             (ts.isArrowFunction(member.initializer) || ts.isFunctionExpression(member.initializer))
           ) {
             const init = member.initializer;
-            let mHeader = '';
-            if (init.body) {
-              const bodyStart = init.body.getStart(sf, false);
-              mHeader = sf.text.slice(member.getStart(sf, false), bodyStart).trim().replace(/\s+/g, ' ');
-            } else {
-              mHeader = member.getText(sf).trim().replace(/\s+/g, ' ');
-            }
+            const mHeader = init.body ? extractFnInitHeader(member, init, sf) : cleanText(member, sf);
 
             classItem.children.push({
               kind: 'method',
@@ -361,7 +432,7 @@ export function parseSourceFile(
             });
           } else {
             // Standard class field
-            let pText = member.getText(sf).trim().replace(/\s+/g, ' ');
+            let pText = cleanText(member, sf);
             if (pText.includes('{')) {
               pText = pText.slice(0, pText.indexOf('{')).trim();
             }
@@ -407,10 +478,10 @@ export function parseSourceFile(
       };
 
       for (const member of node.members) {
-        const mText = member.getText(sf).trim().replace(/\s+/g, ' ');
+        const mText = cleanText(member, sf);
         ifaceItem.fieldsOrVariants.push(mText);
         const mLines = getNodeLines(member, sf);
-        const mName = member.name ? member.name.getText(sf) : '';
+        const mName = member.name ? cleanText(member.name, sf) : '';
         if (mName) {
           const isMethod = ts.isMethodSignature(member);
           ifaceItem.children.push({
@@ -454,10 +525,10 @@ export function parseSourceFile(
 
       if (ts.isTypeLiteralNode(node.type)) {
         for (const member of node.type.members) {
-          const mText = member.getText(sf).trim().replace(/\s+/g, ' ');
+          const mText = cleanText(member, sf);
           typeItem.fieldsOrVariants.push(mText);
           const mLines = getNodeLines(member, sf);
-          const mName = member.name ? member.name.getText(sf) : '';
+          const mName = member.name ? cleanText(member.name, sf) : '';
           if (mName) {
             const isMethod = ts.isMethodSignature(member);
             typeItem.children.push({
@@ -501,8 +572,8 @@ export function parseSourceFile(
       };
 
       for (const member of node.members) {
-        const mName = member.name.getText(sf);
-        const mText = member.getText(sf).trim().replace(/\s+/g, ' ');
+        const mName = cleanText(member.name, sf);
+        const mText = cleanText(member, sf);
         enumItem.fieldsOrVariants.push(mText);
         const mLines = getNodeLines(member, sf);
         enumItem.children.push({
@@ -550,7 +621,7 @@ export function parseSourceFile(
       const { header, isFn } = formatVariableHeader(node, sf);
 
       for (const decl of node.declarationList.declarations) {
-        const name = decl.name.getText(sf);
+        const name = cleanText(decl.name, sf);
         const kind = isFn
           ? 'function'
           : node.declarationList.flags & ts.NodeFlags.Const

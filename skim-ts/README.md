@@ -96,7 +96,7 @@ ln -sf "$(pwd)/skim-ts" ~/.local/bin/skim-ts
 ## CLI Reference & Concrete Examples
 
 > [!NOTE]
-> Examples 1-6 below are authentic outputs produced by running `skim-ts` against the [`colinhacks/zod`](https://github.com/colinhacks/zod) repository and local fixtures.
+> Examples below are authentic outputs produced by running `skim-ts` against the [`colinhacks/zod`](https://github.com/colinhacks/zod) repository and local fixtures.
 
 ```text
 Usage:
@@ -152,8 +152,8 @@ Imports: (none)
 
 Outline:
   L2-L2        export type ErrMessage
-  L3-L4        export const errToObj = (message?: ErrMessage): { message?: string | undefined } =>
-  L6-L7        export const toString = (message?: ErrMessage): string | undefined =>
+  L3-L4        export const errToObj = (message?: ErrMessage): { message?: string | undefined }
+  L6-L7        export const toString = (message?: ErrMessage): string | undefined
   L1-L8        export namespace errorUtil
 ```
 
@@ -166,7 +166,7 @@ skim-ts glance packages/zod/src/v3/helpers/parseUtil.ts -s -d
 === packages/zod/src/v3/helpers/parseUtil.ts (177 lines) ===
 
 Outline:
-  L6-L41       export const makeIssue = (params: { data: any; path: (string | number)[]; errorMaps: ZodErrorMap[]; issueData: IssueData; }): ZodIssue =>
+  L6-L41       export const makeIssue = (params: { data: any; path: (string | number)[]; errorMaps: ZodErrorMap[]; issueData: IssueData; }): ZodIssue
   L43-L47      export type ParseParams
                  | path: (string | number)[];
                  | errorMap: ZodErrorMap;
@@ -194,10 +194,29 @@ Outline:
   L94-L96        method dirty(): void
   L97-L99        method abort(): void
   L101-L110      method static mergeArray(status: ParseStatus, results: SyncParseReturnType<any>[]): SyncParseReturnType
-  L112-L126      method static async mergeObjectAsync( status: ParseStatus, pairs: { key: ParseReturnType<any>; value: ParseReturnType<any> }[] ): Promise<SyncParseReturnType<any>>
-  L128-L150      method static mergeObjectSync( status: ParseStatus, pairs: { key: SyncParseReturnType<any>; value: SyncParseReturnType<any>; alwaysSet?: boolean; }[] ): SyncParseReturnType
+  L112-L126      method static async mergeObjectAsync(status: ParseStatus, pairs: { key: ParseReturnType<any>; value: ParseReturnType<any> }[]): Promise<SyncParseReturnType<any>>
+  L128-L150      method static mergeObjectSync(status: ParseStatus, pairs: { key: SyncParseReturnType<any>; value: SyncParseReturnType<any>; alwaysSet?: boolean; }[]): SyncParseReturnType
   L152-L155    export interface ParseResult
                  | status: "aborted" | "dirty" | "valid";
+                 | data: any;
+  L157-L157    export type INVALID
+                 | status: "aborted"
+  L158-L160    export const INVALID: INVALID
+  L162-L162    export type DIRTY<T>
+                 | status: "dirty";
+                 | value: T
+  L163-L163    export const DIRTY = <T>(value: T): DIRTY<T>
+  L165-L165    export type OK<T>
+                 | status: "valid";
+                 | value: T
+  L166-L166    export const OK = <T>(value: T): OK<T>
+  L168-L168    export type SyncParseReturnType<T = any> = OK<T> | DIRTY<T> | INVALID
+  L169-L169    export type AsyncParseReturnType<T> = Promise<SyncParseReturnType<T>>
+  L170-L170    export type ParseReturnType<T> = SyncParseReturnType<T> | AsyncParseReturnType<T>
+  L172-L172    export const isAborted = (x: ParseReturnType<any>): x is INVALID
+  L173-L173    export const isDirty = <T>(x: ParseReturnType<T>): x is OK<T> | DIRTY<T>
+  L174-L174    export const isValid = <T>(x: ParseReturnType<T>): x is OK<T>
+  L175-L176    export const isAsync = <T>(x: ParseReturnType<T>): x is AsyncParseReturnType<T>
 ```
 
 #### Example 4: Filter by Keyword across Declarations (`-f <keyword>`)
@@ -209,11 +228,35 @@ skim-ts glance packages/zod/src/v3/helpers/parseUtil.ts -s -f "makeIssue"
 === packages/zod/src/v3/helpers/parseUtil.ts (177 lines) ===
 
 Outline:
-  L6-L41       export const makeIssue = (params: { data: any; path: (string | number)[]; errorMaps: ZodErrorMap[]; issueData: IssueData; }): ZodIssue =>
+  L6-L41       export const makeIssue = (params: { data: any; path: (string | number)[]; errorMaps: ZodErrorMap[]; issueData: IssueData; }): ZodIssue
   L72-L86      export function addIssueToContext(ctx: ParseContext, issueData: IssueData): void
 ```
 
-#### Example 5: In-File Test Filtering & Inclusion (`-t`)
+#### Example 5: Comment-Free Outlines, Doc-Comment-Inclusive Spans
+
+`glance` never prints comment text (doc comments, `//` / `/* */` comments, or comments inside parameter lists, type parameters and members), and decorators are not part of signatures. Doc comments are only visible through `block`. A declaration's `L<start>-L<end>` span begins at its attached JSDoc (`/** ... */`) block, so `block` prints the doc comment with the code and a glance span can be fed straight to a line-range reader. Detached comments (separated by a blank line), non-JSDoc `//` comments, and trailing comments after the closing line are not part of the span.
+
+```bash
+skim-ts glance packages/zod/src/v4/core/errors.ts -s -f toDotPath
+```
+```text
+=== packages/zod/src/v4/core/errors.ts (544 lines) ===
+
+Outline:
+  L482-L528    export function toDotPath(_path: readonly (string | number | symbol | StandardSchemaV1.PathSegment)[]): string
+  L530-L543    export function prettifyError(error: StandardSchemaV1.FailureResult): string
+```
+
+```bash
+skim-ts block packages/zod/src/v4/core/errors.ts toDotPath --raw | head -3
+```
+```typescript
+/** Format a ZodError as a human-readable string in the following form.
+ *
+ * From
+```
+
+#### Example 6: In-File Test Filtering & Inclusion (`-t`)
 
 In-file test suites (`describe()`, `it()`, `test()`) are filtered out by default, with skipped ranges highlighted:
 
@@ -266,7 +309,7 @@ Outline:
   L73-L157     test test("all errors")
 ```
 
-#### Example 6: Syntax Error Tolerance & Reporting
+#### Example 7: Syntax Error Tolerance & Reporting
 
 If a file has a syntax error during active editing or refactoring, `skim-ts` will not crash; it pinpoints syntax errors directly under the file header while outlining valid declarations:
 
@@ -283,7 +326,7 @@ Outline:
   L10-L12      export interface AnotherValidInterface
 ```
 
-#### Example 7: Single File Components (Vue, Svelte, Astro)
+#### Example 8: Single File Components (Vue, Svelte, Astro)
 
 Single File Components (`.vue`, `.svelte`, `.astro`) outline SFC root containers at Depth 0 with verbatim tags, and indent inner script declarations naturally at Depth 1:
 
@@ -333,7 +376,7 @@ Options:
   --raw                     Omit line number gutter (clean code for edits/diffs)
 ```
 
-#### Example 7: Extract Class Definition
+#### Example 9: Extract Class Definition
 
 ```bash
 skim-ts block packages/zod/src/v3/helpers/parseUtil.ts ParseStatus
@@ -402,7 +445,7 @@ skim-ts block packages/zod/src/v3/helpers/parseUtil.ts ParseStatus
   151 | }
 ```
 
-#### Example 8: Extract Qualified Method (`Class.method`)
+#### Example 10: Extract Qualified Method (`Class.method`)
 
 ```bash
 skim-ts block packages/zod/src/v3/helpers/parseUtil.ts ParseStatus.dirty
@@ -420,7 +463,7 @@ Case-insensitive target matching is also supported:
 skim-ts block packages/zod/src/v3/helpers/parseUtil.ts parsestatus.dirty
 ```
 
-#### Example 9: Raw Output for Seamless Patching (`--raw`)
+#### Example 11: Raw Output for Seamless Patching (`--raw`)
 
 ```bash
 skim-ts block packages/zod/src/v3/helpers/parseUtil.ts ParseStatus.dirty --raw
@@ -431,7 +474,7 @@ skim-ts block packages/zod/src/v3/helpers/parseUtil.ts ParseStatus.dirty --raw
   }
 ```
 
-#### Example 10: Disambiguation Handling
+#### Example 12: Disambiguation Handling
 
 When multiple candidates match an ambiguous target name, `skim-ts` exits with status `3` and provides candidates and resolution tips:
 
@@ -446,7 +489,7 @@ Error: ambiguous target 'parse' matched 2 candidates in fixtures/ambiguous.ts:
 Tip: Disambiguate with Class.method (e.g. UserService.getUser) or read line range directly.
 ```
 
-#### Example 11: Syntax Notice Inside Extracted Block
+#### Example 13: Syntax Notice Inside Extracted Block
 
 If an extracted block contains a syntax error within its line span, the warning is surfaced directly above the block:
 

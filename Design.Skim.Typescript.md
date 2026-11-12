@@ -47,6 +47,15 @@ Per the [Design.Skim.md](Design.Skim.md) specification, `skim-ts` outlines top-l
   - **Classes**: Property fields, parameter properties, and member declarations.
   - **Enums**: Enum variants and initialized values indented under parent enum with `| <member> = <value>`.
 
+### 3.3 Comments, Decorators & Line Spans
+Conforms to [Design.Skim.md §3.1.1](Design.Skim.md).
+- **No comments in `glance` output**: Signatures (`-s`) and members (`-d`, including interface/type-literal/class/enum members and import lines) are rebuilt from the AST's non-trivia leaf tokens, never sliced from raw source. JSDoc, `//` and `/* */` comments are dropped at any position (inside parameter lists, type parameters, member types, between the return type and `{`), so a `//` comment can no longer swallow the rest of the collapsed one-line signature. Spacing left behind is tidied (`( x` -> `(x`, `x )` -> `x)`).
+- **Decorators are not part of signatures** (class, member or parameter decorators).
+- **Header end**: the body start, the first `{`/`;` child token of the declaration, or, for arrow functions, the `=>` token. Arrow-function signatures therefore no longer carry a dangling `=>` (`export const f = (x: number): number`).
+- **Span rule**: `L<start>-L<end>` (glance and `block`) starts at the first line of the contiguous attached JSDoc (`/** ... */`) block, including decorators, and ends at the declaration's closing line. Only JSDoc counts as a doc comment: contiguous `//` lines and plain `/* */` comments directly above are *not* pulled in, though they do not break the chain (a `// eslint-disable` line between a JSDoc and its declaration stays inside the span). Comments separated by a blank line (detached) and trailing comments after the closing line are excluded.
+- SFC scripts go through the same parser, so the rules apply identically inside `.vue`, `.svelte` and `.astro`.
+- Test fixture: `fixtures/comments.ts`.
+
 ---
 
 ## 4. Single File Component (SFC) Support
