@@ -93,6 +93,13 @@ Rules:
 - If `-s` is active, the full signature is printed.
 - If `-d` is active, field definitions (or enum members) are printed indented under the type.
 
+#### 3.1.1 Comments and Line Spans
+
+- **No comments in the outline.** `glance` output (default, `-s`, `-d`) never contains comment text: doc comments, line/block comments, and comments *inside* a declaration (parameter lists, type parameters, member types, between a return type and the body) are all stripped. Signatures are rebuilt from code tokens, so a stripped comment can never swallow the code after it on the collapsed one-line signature. Attributes/decorators are not part of `-s` signatures or `-d` members either.
+- **Doc comments are not shown by `glance`**, only by `block`, which is verbatim.
+- **Spans cover the whole declaration as an editor sees it:** the contiguous doc comment and attributes/decorators directly attached above the declaration are *included* in `L<start>-L<end>` (Rust `///` + `#[...]`, Go `//` group above, TS/JS JSDoc, Python decorators). Detached comments (separated by a blank line) and trailing comments after the closing line are excluded. Consequently `block` prints the doc comment with the code, and a glance span can be fed directly to a line-range reader.
+- Implementations should include a commented-code fixture covering the above.
+
 ### 3.2 `block` Output Structure
 
 #### Default (Gutter with Line Numbers):

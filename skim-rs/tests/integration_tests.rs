@@ -279,3 +279,30 @@ fn test_block_rust_qualified_paths() {
     let (code, _, _) = run_cmd(&["block", "fixtures/impls.rs", "<User as Debug>::dup"]);
     assert_eq!(code, 2);
 }
+
+#[test]
+fn test_comments_never_reach_outline() {
+    let (code, out, _) = run_cmd(&["glance", "fixtures/comments.rs", "-s", "-d"]);
+    assert_eq!(code, 0);
+    for leaked in ["//", "/*", "documented", "Port to bind", "payload", "trailing", "dead_code", "#["] {
+        assert!(!out.contains(leaked), "leaked {leaked:?}:\n{out}");
+    }
+    assert!(out.contains("pub fn add(a: i32, b: i32) -> i32"), "{out}");
+    assert!(out.contains("fn call(&self, x: u8, y: u8) -> Self::Future"), "{out}");
+    assert!(out.contains("| B(u8)"), "{out}");
+    assert!(out.contains("| type Future: Send") && out.contains("| const MAX: u32 = 3"), "{out}");
+    assert!(out.contains("| pub port: u16") && out.contains("| pub host: String"), "{out}");
+}
+
+#[test]
+fn test_span_includes_doc_comments_and_attributes() {
+    let (code, out, _) = run_cmd(&["glance", "fixtures/comments.rs"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("L1-L9        struct Config"), "{out}");
+    assert!(out.contains("L30-L35      fn add"), "{out}");
+    // block keeps the doc comment and comments in the body verbatim
+    let (code, out, _) = run_cmd(&["block", "fixtures/comments.rs", "add", "--raw"]);
+    assert_eq!(code, 0);
+    assert!(out.starts_with("/// Adds numbers."), "{out}");
+    assert!(out.contains("// body comment"), "{out}");
+}

@@ -73,7 +73,7 @@ Out-of-line modules (`mod foo;`) are listed but deliberately **never followed**:
 
 ### 3.3 Signatures (`-s`) and Details (`-d`)
 
-- **Signatures**: Rendered by concatenating the CST tokens of the node up to (excluding) its body (`{ … }` block, field list, variant list, or item list), skipping attributes and comments, then whitespace-collapsed. Visibility, qualifiers (`async`, `unsafe`, `const`, `extern`), generics, parameters, return type and `where` clauses are therefore preserved verbatim. `type`, `const`, `static` render their full source text minus the trailing `;` (including initializer). With `-s`, the `<kind>` column is dropped, since the signature already begins with the keyword. `glance` prints each `impl` header (`impl<T> Trait for Foo<T>`, no body) once, with its span, followed by its visible members indented two extra spaces.
+- **Signatures**: Rendered by concatenating the CST tokens of the node up to (excluding) its body (`{ … }` block, field list, variant list, or item list), skipping attributes and comments, then whitespace-collapsed. Comments (doc, line, block, including those inside parameter lists) and attributes are never emitted (per [Design.Skim.md §3.1.1](Design.Skim.md)); the same token filter produces `-d` members, so `///` docs and field attributes never appear there. Visibility, qualifiers (`async`, `unsafe`, `const`, `extern`), generics, parameters, return type and `where` clauses are therefore preserved verbatim. `type`, `const`, `static` render their full source text minus the trailing `;` (including initializer). With `-s`, the `<kind>` column is dropped, since the signature already begins with the keyword. `glance` prints each `impl` header (`impl<T> Trait for Foo<T>`, no body) once, with its span, followed by its visible members indented two extra spaces.
 - **Details (`-d`)**: Printed beneath the parent as `      | <member>`.
   - Structs: `pub name: Type` (tuple structs: `pub Type`).
   - Enums: full variant text including payloads and discriminants (`Found(T)`, `Err { code: u16 }`, `A = 1`).
@@ -85,7 +85,7 @@ Consistent with the rest of the family, `-f` matches against the item's name, si
 
 ### 3.5 Line Spans
 
-Spans come from the node's text range, so **outer attributes and doc comments are included** in the span (`#[derive(...)]` is line 1 of a struct's block). Lines are 1-indexed and inclusive.
+Spans come from the node's text range, so **outer attributes and doc comments are included** in the span (this is the family rule, [Design.Skim.md §3.1.1](Design.Skim.md)) (`#[derive(...)]` is line 1 of a struct's block). Lines are 1-indexed and inclusive.
 
 ---
 
@@ -159,13 +159,13 @@ skim-rs/
 │   ├── parser.rs   # ra_ap_syntax walker, item processors, signature formatter, test detection
 │   ├── model.rs    # Item, ItemKind, DetailMember, SyntaxNotice, ParsedRustFile
 │   └── fs.rs       # LineIndex, path collection, test-path exclusion
-├── fixtures/       # broken.rs, casing.rs, impls.rs, nested_mods.rs, tests.rs
+├── fixtures/       # broken.rs, casing.rs, comments.rs, impls.rs, nested_mods.rs, tests.rs, false_tests.rs
 └── tests/integration_tests.rs   # Runs the built binary against fixtures
 ```
 
 **Distribution**: `cargo install --path skim-rs` (local) or `cargo install skim-rs`. Release profile: `opt-level = 3`, thin LTO, one codegen unit, stripped.
 
-**Automated tests** (`cargo test`) cover: signatures/imports, doc-comment stripping from signatures, exact-case precedence, inherent vs trait impl resolution, Rust qualified-path targets, test filtering, syntax-error indication in `block`, recursive inline-module outlines, resolution inside inline and test modules, filter-within-block matching, and missing-path warnings.
+**Automated tests** (`cargo test`) cover: signatures/imports, doc-comment stripping from signatures, exact-case precedence, inherent vs trait impl resolution, Rust qualified-path targets, test filtering, syntax-error indication in `block`, recursive inline-module outlines, resolution inside inline and test modules, filter-within-block matching, and missing-path warnings, and comment stripping in `-s`/`-d` (fixtures/comments.rs).
 
 **Smoke testing**: build the release binary and run against a large real repository (e.g. `tokio-rs/axum` cloned under `testingRepositories/rust/`):
 ```bash

@@ -1,6 +1,6 @@
 use ra_ap_syntax::{
     ast::{self, HasAttrs, HasModuleItem, HasName},
-    AstNode, SourceFile, SyntaxKind, SyntaxNode,
+    AstNode, SourceFile, SyntaxKind, SyntaxNode, WalkEvent,
 };
 use text_size::TextRange;
 
@@ -153,9 +153,7 @@ fn is_test_item<N: HasAttrs>(item: &N) -> bool {
 }
 
 fn clean_use_text(u: &ast::Use) -> String {
-    let s = u.syntax().text().to_string();
-    let trimmed = s.trim();
-    collapse_whitespace(trimmed)
+    clean_text(u.syntax(), None)
 }
 
 fn collapse_whitespace(s: &str) -> String {
@@ -175,47 +173,56 @@ fn collapse_whitespace(s: &str) -> String {
     result
 }
 
-fn format_signature_up_to_body(node: &SyntaxNode, body_range: Option<TextRange>) -> String {
-    let limit_end = match body_range {
-        Some(range) => range.start(),
-        None => node.text_range().end(),
-    };
-
-    let mut sig_parts = Vec::new();
-    for element in node.children_with_tokens() {
-        if element.text_range().start() >= limit_end {
-            break;
-        }
-
-        match element.kind() {
-            SyntaxKind::ATTR | SyntaxKind::COMMENT | SyntaxKind::DOC_COMMENT => continue,
-            _ => {}
-        }
-
-        match element {
-            ra_ap_syntax::SyntaxElement::Token(token) => {
-                sig_parts.push(token.text().to_string());
-            }
-            ra_ap_syntax::SyntaxElement::Node(child_node) => {
-                for token in child_node.descendants_with_tokens() {
-                    if token.text_range().start() >= limit_end {
+/// Concatenates the tokens of `node` (optionally only those starting before
+/// `limit_end`), skipping attributes and comments at any depth, then collapses
+/// whitespace. Comments never reach `glance` output (Design.Skim.md §3.1.1).
+fn clean_text(node: &SyntaxNode, limit_end: Option<text_size::TextSize>) -> String {
+    let mut out = String::new();
+    let mut after_comment = false;
+    let mut it = node.preorder_with_tokens();
+    while let Some(event) = it.next() {
+        match event {
+            WalkEvent::Enter(element) => {
+                if let Some(limit) = limit_end {
+                    if element.text_range().start() >= limit {
                         break;
                     }
-                    match token.kind() {
-                        SyntaxKind::ATTR | SyntaxKind::COMMENT | SyntaxKind::DOC_COMMENT => continue,
-                        _ => {}
+                }
+                match element.kind() {
+                    SyntaxKind::ATTR => it.skip_subtree(),
+                    SyntaxKind::COMMENT | SyntaxKind::INNER_DOC_COMMENT | SyntaxKind::OUTER_DOC_COMMENT => {
+                        after_comment = true
                     }
-                    if let ra_ap_syntax::SyntaxElement::Token(t) = token {
-                        sig_parts.push(t.text().to_string());
+                    _ => {
+                        if let ra_ap_syntax::SyntaxElement::Token(t) = element {
+                            let text = t.text();
+                            let is_ws = t.kind() == SyntaxKind::WHITESPACE;
+                            if after_comment {
+                                // Avoid `( x` / `x )` left behind by a removed comment.
+                                if is_ws && out.ends_with('(') {
+                                    continue;
+                                }
+                                if text == ")" {
+                                    out.truncate(out.trim_end().len());
+                                }
+                            }
+                            if !is_ws {
+                                after_comment = false;
+                            }
+                            out.push_str(text);
+                        }
                     }
                 }
             }
+            WalkEvent::Leave(_) => {}
         }
     }
+    collapse_whitespace(out.trim())
+}
 
-    let joined = sig_parts.concat();
-    let trimmed = joined.trim().trim_end_matches('{').trim().trim_end_matches(';').trim();
-    collapse_whitespace(trimmed)
+fn format_signature_up_to_body(node: &SyntaxNode, body_range: Option<TextRange>) -> String {
+    let joined = clean_text(node, body_range.map(|r| r.start()));
+    joined.trim_end_matches('{').trim().trim_end_matches(';').trim().to_string()
 }
 
 fn process_fn(f: &ast::Fn, receiver_type: Option<&str>, line_index: &LineIndex) -> Option<Item> {
@@ -272,7 +279,7 @@ fn process_struct(s: &ast::Struct, line_index: &LineIndex) -> Option<Item> {
             ast::FieldList::RecordFieldList(rfl) => {
                 for field in rfl.fields() {
                     let field_name = field.name().map(|n| n.text().to_string()).unwrap_or_default();
-                    let field_sig = collapse_whitespace(field.syntax().text().to_string().trim().trim_end_matches(','));
+                    let field_sig = clean_text(field.syntax(), None).trim_end_matches(',').trim().to_string();
                     details.push(DetailMember {
                         name: field_name,
                         signature: field_sig,
@@ -282,7 +289,7 @@ fn process_struct(s: &ast::Struct, line_index: &LineIndex) -> Option<Item> {
             }
             ast::FieldList::TupleFieldList(tfl) => {
                 for (idx, field) in tfl.fields().enumerate() {
-                    let field_sig = collapse_whitespace(field.syntax().text().to_string().trim().trim_end_matches(','));
+                    let field_sig = clean_text(field.syntax(), None).trim_end_matches(',').trim().to_string();
                     details.push(DetailMember {
                         name: format!("{}", idx),
                         signature: field_sig,
@@ -320,7 +327,7 @@ fn process_enum(e: &ast::Enum, line_index: &LineIndex) -> Option<Item> {
     if let Some(vl) = e.variant_list() {
         for v in vl.variants() {
             let var_name = v.name().map(|n| n.text().to_string()).unwrap_or_default();
-            let var_sig = collapse_whitespace(v.syntax().text().to_string().trim().trim_end_matches(','));
+            let var_sig = clean_text(v.syntax(), None).trim_end_matches(',').trim().to_string();
             details.push(DetailMember {
                 name: var_name,
                 signature: var_sig,
@@ -368,7 +375,7 @@ fn process_trait(t: &ast::Trait, line_index: &LineIndex) -> Option<Item> {
                 }
                 ast::AssocItem::TypeAlias(ta) => {
                     let ta_name = ta.name().map(|n| n.text().to_string()).unwrap_or_default();
-                    let ta_sig = collapse_whitespace(ta.syntax().text().to_string().trim().trim_end_matches(';'));
+                    let ta_sig = clean_text(ta.syntax(), None).trim_end_matches(';').trim().to_string();
                     details.push(DetailMember {
                         name: ta_name,
                         signature: ta_sig,
@@ -377,7 +384,7 @@ fn process_trait(t: &ast::Trait, line_index: &LineIndex) -> Option<Item> {
                 }
                 ast::AssocItem::Const(c) => {
                     let c_name = c.name().map(|n| n.text().to_string()).unwrap_or_default();
-                    let c_sig = collapse_whitespace(c.syntax().text().to_string().trim().trim_end_matches(';'));
+                    let c_sig = clean_text(c.syntax(), None).trim_end_matches(';').trim().to_string();
                     details.push(DetailMember {
                         name: c_name,
                         signature: c_sig,
@@ -385,7 +392,7 @@ fn process_trait(t: &ast::Trait, line_index: &LineIndex) -> Option<Item> {
                     });
                 }
                 ast::AssocItem::MacroCall(m) => {
-                    let m_sig = collapse_whitespace(m.syntax().text().to_string().trim());
+                    let m_sig = clean_text(m.syntax(), None);
                     details.push(DetailMember {
                         name: "".to_string(),
                         signature: m_sig,
@@ -415,7 +422,7 @@ fn process_type_alias(t: &ast::TypeAlias, receiver: Option<&str>, line_index: &L
     let name = t.name()?.text().to_string();
     let (start_line, end_line) = node_lines(t.syntax(), line_index);
     let is_test = is_test_item(t);
-    let signature = collapse_whitespace(t.syntax().text().to_string().trim().trim_end_matches(';'));
+    let signature = clean_text(t.syntax(), None).trim_end_matches(';').trim().to_string();
 
     let qualified_name = match receiver {
         Some(recv) => format!("{}::{}", recv, name),
@@ -441,7 +448,7 @@ fn process_const(c: &ast::Const, receiver: Option<&str>, line_index: &LineIndex)
     let name = c.name()?.text().to_string();
     let (start_line, end_line) = node_lines(c.syntax(), line_index);
     let is_test = is_test_item(c);
-    let signature = collapse_whitespace(c.syntax().text().to_string().trim().trim_end_matches(';'));
+    let signature = clean_text(c.syntax(), None).trim_end_matches(';').trim().to_string();
 
     let qualified_name = match receiver {
         Some(recv) => format!("{}::{}", recv, name),
@@ -467,7 +474,7 @@ fn process_static(s: &ast::Static, line_index: &LineIndex) -> Option<Item> {
     let name = s.name()?.text().to_string();
     let (start_line, end_line) = node_lines(s.syntax(), line_index);
     let is_test = is_test_item(s);
-    let signature = collapse_whitespace(s.syntax().text().to_string().trim().trim_end_matches(';'));
+    let signature = clean_text(s.syntax(), None).trim_end_matches(';').trim().to_string();
 
     Some(Item {
         kind: ItemKind::Static,

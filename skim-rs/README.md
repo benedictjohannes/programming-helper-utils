@@ -47,11 +47,15 @@ flowchart TD
 - **Rust Analyzer AST Engine (`ra_ap_syntax`)**: Lossless syntax tree parser. Unlike `syn`, it parses incomplete or syntactically invalid code gracefully, displaying syntax notices without crashing or skipping valid declarations.
 - **Test-Blind by Default**:
   - Automatically excludes `tests/` directories and `*_test.rs` files during directory and pattern traversals unless `-t` / `--include-tests` is specified.
-  - Automatically filters out `#[cfg(test)] mod tests`, `#[test]`, `#[tokio::test]`, and `test_*` functions inside files unless `-t` is passed.
+  - Automatically filters out `#[cfg(test)]` modules, `#[test]`, `#[tokio::test]`, `#[rstest]` and `#[test_case]` items inside files unless `-t` is passed. Detection is attribute-based: a function merely *named* `test_connection` is regular code.
+- **Comment-Free Outlines**: `-s` and `-d` never print doc comments, attributes or comments embedded in a signature (`fn add(/* a */ x: i32, // note\n y: i32)` prints as `fn add(x: i32, y: i32)`). Use `block` to read them.
+- **Impl-Aware Outlines**: `impl` blocks are printed as a header (with its line span) followed by their members, so you can see at a glance which trait a method belongs to. Members taking `self` are labeled `method`; associated functions such as `new` stay `fn`.
+- **Inline Modules Are Outlined**: `mod foo { ... }` is expanded recursively with indentation per nesting level. Out-of-line `mod foo;` declarations are listed but never followed, keeping each invocation single-file.
 - **Member `Type::method` Resolution**:
-  - Resolves methods in inherent impls (`impl Router { fn route(...) }`) and trait impls (`impl Service for Router { fn call(...) }`) via `Type::method` syntax.
+  - Resolves methods in inherent impls (`impl Router { fn route(...) }`) and trait impls (`impl Service for Router { fn call(...) }`) via `Type::method` syntax, at any module depth (`future::HandleErrorFuture::poll`, or any trailing path suffix).
+  - Accepts Rust qualified paths (`'<Type as Trait>::method'`, `'<Type>::method'`) to pick one impl when `Type::method` is ambiguous (e.g. `Display::fmt` vs `Debug::fmt`).
 - **Exact-Case Precedence with Case-Insensitive Fallback**: Matches `router::route` to `Router::route` while prioritizing exact case if both `struct Config` and `fn config()` coexist.
-- **Clear Ambiguity Diagnostics**: When a target matches multiple candidates (e.g. module `route` vs method `Router::route`), `skim-rs` exits with code `3` and lists candidate locations with line spans and disambiguation guidance.
+- **Clear Ambiguity Diagnostics**: When a target matches multiple candidates (e.g. module `route` vs method `Router::route`), `skim-rs` exits with code `3` and lists every candidate with its line span, as a copy-pasteable Rust qualified path for impl members, plus disambiguation guidance.
 - **Blazing Fast**: Native compiled static binary with near-instant execution (<10ms).
 
 ---
@@ -108,7 +112,7 @@ Options:
   -s, --signatures          Show declarations & types without function bodies
   -d, --details             Show struct fields, interface members, and enum variants
   -u, --uses, --imports     Display top-level imports and uses
-  -f, --filter <text>       Filter items containing <text> (within block or declaration, case-insensitive, repeatable for AND)
+  -f, --filter <text>       Filter items containing <text> (name, signature, details or body, case-insensitive, repeatable for AND)
   -t, --include-tests       Include test files, test modules, and test functions
 ```
 
@@ -118,14 +122,18 @@ Options:
 skim-rs glance axum/src/form.rs
 ```
 ```text
-=== axum/src/form.rs (283 lines) ===
+=== axum/src/form.rs (282 lines) ===
 
 Outline:
   L9-L71       struct Form
-  L78-L78      type Rejection
-  L80-L104     fn from_request
-  L111-L130    fn into_response
+  L73-L105     impl<T, S> FromRequest<S> for Form<T> where T: DeserializeOwned, S: Send + Sync,
+  L78-L78        type Rejection
+  L80-L104       fn from_request
+  L107-L131    impl<T> IntoResponse for Form<T> where T: Serialize,
+  L111-L130      method into_response
 ```
+
+`impl` blocks are shown once, with their span, and their members are indented beneath. Functions that take `self` are labeled `method`; the rest (`from_request` here, which is a plain `async fn` in the trait) keep `fn`.
 
 #### Example 2: Signatures and Imports (`-s -u`)
 
@@ -133,7 +141,7 @@ Outline:
 skim-rs glance axum/src/form.rs -s -u
 ```
 ```text
-=== axum/src/form.rs (283 lines) ===
+=== axum/src/form.rs (282 lines) ===
 
 Imports:
   use crate::extract::Request;
@@ -146,9 +154,11 @@ Imports:
 
 Outline:
   L9-L71       pub struct Form<T>
-  L78-L78      type Rejection = FormRejection
-  L80-L104     async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection>
-  L111-L130    fn into_response(self) -> Response
+  L73-L105     impl<T, S> FromRequest<S> for Form<T> where T: DeserializeOwned, S: Send + Sync,
+  L78-L78        type Rejection = FormRejection
+  L80-L104       async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection>
+  L107-L131    impl<T> IntoResponse for Form<T> where T: Serialize,
+  L111-L130      fn into_response(self) -> Response
 ```
 
 #### Example 3: Expand Struct Fields & Types (`-d`)
@@ -157,15 +167,36 @@ Outline:
 skim-rs glance axum/src/form.rs -s -d
 ```
 ```text
-=== axum/src/form.rs (283 lines) ===
+=== axum/src/form.rs (282 lines) ===
 
 Outline:
   L9-L71       pub struct Form<T>
       | pub T
-  L78-L78      type Rejection = FormRejection
-  L80-L104     async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection>
-  L111-L130    fn into_response(self) -> Response
+  L73-L105     impl<T, S> FromRequest<S> for Form<T> where T: DeserializeOwned, S: Send + Sync,
+  L78-L78        type Rejection = FormRejection
+  L80-L104       async fn from_request(req: Request, _state: &S) -> Result<Self, Self::Rejection>
+  L107-L131    impl<T> IntoResponse for Form<T> where T: Serialize,
+  L111-L130      fn into_response(self) -> Response
 ```
+
+Traits list their members too, with doc comments, attributes and any comments inside signatures stripped, so the outline stays dense:
+
+```bash
+skim-rs glance axum/src/handler/mod.rs -s -d -f Handler
+```
+```text
+=== axum/src/handler/mod.rs (448 lines) ===
+
+Outline:
+  L64-L205     pub trait Handler<T, S>: Clone + Send + Sync + Sized + 'static
+      | type Future: Future<Output = Response> + Send + 'static
+      | fn call(self, req: Request, state: S) -> Self::Future
+      | fn layer<L>(self, layer: L) -> Layered<L, Self, T, S> where L: Layer<HandlerService<Self, T, S>> + Clone, L::Service: Service<Request>,
+      | fn with_state(self, state: S) -> HandlerService<Self, T, S>
+  ...
+```
+
+Line spans include the attached doc comment and attributes (`L64` here starts at the first `///` line), so `block` returns them with the code.
 
 #### Example 4: Filter by Keyword across Declarations and Blocks (`-f <keyword>`)
 
@@ -175,7 +206,7 @@ Matches declarations, struct/enum details, or verbatim block contents (e.g. sear
 skim-rs glance axum/src/extract/mod.rs -f "content_type.starts_with"
 ```
 ```text
-=== axum/src/extract/mod.rs (113 lines) ===
+=== axum/src/extract/mod.rs (112 lines) ===
 
 Outline:
   L85-L96      fn has_content_type
@@ -187,7 +218,7 @@ Combined with `-s` to display signatures:
 skim-rs glance axum/src/extract/mod.rs -s -f "has_content_type"
 ```
 ```text
-=== axum/src/extract/mod.rs (113 lines) ===
+=== axum/src/extract/mod.rs (112 lines) ===
 
 Outline:
   L85-L96      pub(super) fn has_content_type(headers: &HeaderMap, expected_content_type: &mime::Mime) -> bool
@@ -199,46 +230,66 @@ Rust unit tests annotated with `#[test]` or enclosed in `#[cfg(test)]` modules a
 
 ```bash
 # Default: unit tests omitted
-skim-rs glance axum/src/error_handling/mod.rs
+skim-rs glance axum/src/extract/mod.rs
 ```
 ```text
-=== axum/src/error_handling/mod.rs (263 lines) ===
+=== axum/src/extract/mod.rs (112 lines) ===
 
 Outline:
-  L19-L26      struct HandleErrorLayer
-  L29-L35      fn new
-  L42-L47      fn clone
-  L51-L55      fn fmt
-  L62-L62      type Service
-  L64-L66      fn layer
-  L69-L76      struct HandleError
-  L79-L86      fn new
-  L94-L100     fn clone
-  L107-L112    fn fmt
-  L126-L126    type Response
-  L127-L127    type Error
-  L128-L128    type Future
-  L130-L132    fn poll_ready
-  L134-L148    fn call
-  L151-L205    macro impl_service
-  L224-L254    mod future
+  L5-L6        mod connect_info
+  L7-L7        mod path
+  L8-L8        mod rejection
+  L10-L11      mod ws
+  L13-L13      mod nested_path
+  L14-L15      mod original_uri
+  L16-L16      mod raw_form
+  L17-L17      mod raw_query
+  L18-L18      mod state
+  L56-L57      mod matched_path
+  L63-L64      mod multipart
+  L70-L71      mod query
+  L85-L96      fn has_content_type
 ```
 
-When test inspection is desired, pass `-t`:
+Out-of-line modules (`mod path;`) are listed but never followed; run `glance` on the directory to see their contents. When test inspection is desired, pass `-t`:
 
 ```bash
-skim-rs glance axum/src/error_handling/mod.rs -t
+skim-rs glance axum/src/extract/mod.rs -t
 ```
 ```text
-=== axum/src/error_handling/mod.rs (263 lines) ===
+=== axum/src/extract/mod.rs (112 lines) ===
 
 Outline:
   ...
-  L224-L254    mod future
-  L256-L262    fn traits
+  L85-L96      fn has_content_type
+  L98-L112     mod tests
+  L102-L111      fn consume_body
 ```
 
-#### Example 6: Syntax Error Tolerance & Reporting
+Files under a `tests/` directory (or named `*_test.rs`) are skipped during traversal too, and tagged `[test]` under `-t`.
+
+#### Example 6: Inline Modules and Impl Grouping
+
+`mod foo { ... }` bodies are outlined recursively, indented one level per nesting depth (impl members one further). Filtering with `-f` keeps the enclosing `mod`/`impl` headers of any matching member:
+
+```bash
+skim-rs glance axum/src/error_handling/mod.rs -s -f HandleErrorFuture
+```
+```text
+=== axum/src/error_handling/mod.rs (262 lines) ===
+
+Outline:
+  L115-L149    impl<S, F, B, Fut, Res> Service<Request<B>> for HandleError<S, F, ()> where S: Service<Request<B>> + Clone + Send + 'static, S::Response: IntoResponse + Send, S::Error: Send, S::Future: Send, F: FnOnce(S::Error) -> Fut + Clone + Send + 'static, Fut: Future<Output = Res> + Send, Res: IntoResponse, B: Send + 'static,
+  L128-L128      type Future = future::HandleErrorFuture
+  L134-L148      fn call(&mut self, req: Request<B>) -> Self::Future
+  L151-L205    macro_rules! impl_service
+  L224-L254    pub mod future
+  L247-L253      impl Future for HandleErrorFuture
+  L248-L248        type Output = Result<Response, Infallible>
+  L250-L252        fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output>
+```
+
+#### Example 7: Syntax Error Tolerance & Reporting
 
 If a file has a syntax error during refactoring or active edits, `skim-rs` will not crash; it pinpoints syntax errors right under the file header and outlines valid declarations:
 
@@ -246,7 +297,7 @@ If a file has a syntax error during refactoring or active edits, `skim-rs` will 
 skim-rs glance fixtures/broken.rs -s
 ```
 ```text
-=== fixtures/broken.rs (13 lines) [! 1 syntax error] ===
+=== fixtures/broken.rs (12 lines) [! 1 syntax error] ===
   Syntax Notice: L6: expected SEMICOLON
 
 Outline:
@@ -267,14 +318,14 @@ Usage:
 
 Arguments:
   <file>                    Path to the .rs file
-  <target>                  Name of type, fn, macro, or Type::method
+  <target>                  Name of type, fn, macro, Type::method, or '<Type as Trait>::method'
 
 Options:
   -t, --include-tests       Search inside test functions/modules
   --raw                     Omit line number gutter (clean code for edits/diffs)
 ```
 
-#### Example 7: Extract Struct Definition
+#### Example 8: Extract Struct Definition
 
 ```bash
 skim-rs block axum/src/response/mod.rs NoContent
@@ -301,7 +352,7 @@ skim-rs block axum/src/response/mod.rs NoContent
    78 | pub struct NoContent;
 ```
 
-#### Example 8: Extract Qualified Method (`Type::method`)
+#### Example 9: Extract Qualified Method (`Type::method`)
 
 ```bash
 skim-rs block axum/src/routing/mod.rs Router::route
@@ -323,7 +374,19 @@ Case-insensitive target matching is supported:
 skim-rs block axum/src/routing/mod.rs router::route
 ```
 
-#### Example 9: Raw Output for Seamless Patching (`--raw`)
+Items inside inline modules resolve at any depth; a trailing path suffix is enough:
+
+```bash
+skim-rs block axum/src/error_handling/mod.rs future::HandleErrorFuture::poll
+```
+```text
+=== axum/src/error_handling/mod.rs (L250-L252) ===
+  250 |         fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+  251 |             self.project().future.poll(cx)
+  252 |         }
+```
+
+#### Example 10: Raw Output for Seamless Patching (`--raw`)
 
 ```bash
 skim-rs block axum/src/routing/mod.rs Router::route --raw
@@ -338,22 +401,52 @@ skim-rs block axum/src/routing/mod.rs Router::route --raw
     }
 ```
 
-#### Example 10: Disambiguation Handling
+#### Example 11: Disambiguation Handling
 
-When multiple candidates match an ambiguous target name, `skim-rs` exits with status `3` and provides candidates and resolution tips:
+When multiple candidates match an ambiguous target name, `skim-rs` exits with status `3`. Impl members are listed as copy-pasteable Rust qualified paths:
 
 ```bash
 skim-rs block axum/src/routing/mod.rs route
 ```
 ```text
-Ambiguous target 'route' matched 2 candidates in axum/src/routing/mod.rs:
+Error: ambiguous target 'route' matched 2 candidates in axum/src/routing/mod.rs:
   1) L36-L36   mod route
-  2) L183-L189   fn Router::route
+  2) L183-L189   method <Router<S>>::route
 
-Tip: Disambiguate with Type::method (e.g. Router::route) or read line range directly.
+Tip: Quote a Rust qualified path to disambiguate impls (e.g. '<Router as Service>::call', or '<Router>::route' for inherent), or read line range directly.
 ```
 
-#### Example 11: Syntax Notice Inside Extracted Block
+#### Example 12: Rust Qualified Paths for Impls (`<Type as Trait>::method`)
+
+`Type::method` is ambiguous when several impls define the same name (`Debug::fmt` vs `Display::fmt`, `From<A>` vs `From<B>`):
+
+```bash
+skim-rs block axum/src/error_handling/mod.rs fmt
+```
+```text
+Error: ambiguous target 'fmt' matched 2 candidates in axum/src/error_handling/mod.rs:
+  1) L51-L55   method <HandleErrorLayer<F, E> as fmt::Debug>::fmt
+  2) L107-L112   method <HandleError<S, F, E> as fmt::Debug>::fmt
+
+Tip: Quote a Rust qualified path to disambiguate impls (e.g. '<Router as Service>::call', or '<Router>::route' for inherent), or read line range directly.
+```
+
+Copy a candidate verbatim (quote it for the shell). `<Type>::method` selects inherent impls only; the trait may be given by its base name (`Debug`) when it has no generics:
+
+```bash
+skim-rs block axum/src/error_handling/mod.rs '<HandleError<S, F, E> as fmt::Debug>::fmt'
+```
+```text
+=== axum/src/error_handling/mod.rs (L107-L112) ===
+  107 |     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+  108 |         f.debug_struct("HandleError")
+  109 |             .field("inner", &self.inner)
+  110 |             .field("f", &format_args!("{}", std::any::type_name::<F>()))
+  111 |             .finish()
+  112 |     }
+```
+
+#### Example 13: Syntax Notice Inside Extracted Block
 
 If an extracted block contains a syntax error, the warning is surfaced directly above the block:
 
