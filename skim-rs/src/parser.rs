@@ -228,9 +228,11 @@ fn process_fn(f: &ast::Fn, receiver_type: Option<&str>, line_index: &LineIndex) 
     let body_range = f.body().map(|b| b.syntax().text_range());
     let signature = format_signature_up_to_body(f.syntax(), body_range);
 
+    // `method` = takes `self`; associated functions (`Type::new`) stay `fn`.
+    let has_self = f.param_list().is_some_and(|p| p.self_param().is_some());
     let (kind, qualified_name, receiver) = match receiver_type {
         Some(recv) => (
-            ItemKind::Method,
+            if has_self { ItemKind::Method } else { ItemKind::Fn },
             format!("{}::{}", recv, name),
             Some(recv.to_string()),
         ),
@@ -604,6 +606,13 @@ fn process_impl(imp: &ast::Impl, line_index: &LineIndex) -> Vec<Item> {
     let (start_line, end_line) = node_lines(imp.syntax(), line_index);
     let impl_ctx = ImplCtx {
         header: format_signature_up_to_body(imp.syntax(), Some(ail.syntax().text_range())),
+        self_ty: imp
+            .self_ty()
+            .map(|t| collapse_whitespace(&t.syntax().text().to_string()))
+            .unwrap_or_default(),
+        trait_ty: imp
+            .trait_()
+            .map(|t| collapse_whitespace(&t.syntax().text().to_string())),
         start_line,
         end_line,
     };

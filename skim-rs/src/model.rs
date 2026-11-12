@@ -17,7 +17,7 @@ impl ItemKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             ItemKind::Fn => "fn",
-            ItemKind::Method => "fn",
+            ItemKind::Method => "method",
             ItemKind::Struct => "struct",
             ItemKind::Enum => "enum",
             ItemKind::Trait => "trait",
@@ -44,6 +44,10 @@ pub struct DetailMember {
 pub struct ImplCtx {
     /// e.g. `impl<T> Default for Foo<T>` (no body)
     pub header: String,
+    /// Full self type text, e.g. `Foo<T>`
+    pub self_ty: String,
+    /// Full trait path text for trait impls, e.g. `From<String>`; `None` for inherent impls.
+    pub trait_ty: Option<String>,
     pub start_line: usize,
     pub end_line: usize,
 }

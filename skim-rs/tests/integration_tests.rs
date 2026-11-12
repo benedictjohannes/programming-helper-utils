@@ -155,13 +155,29 @@ fn test_block_resolves_items_in_inline_module() {
 }
 
 #[test]
-fn test_glance_outline_stays_top_level() {
-    let (code, stdout, _) = run_cmd(&["glance", "fixtures/nested_mods.rs", "-t"]);
+fn test_glance_enters_inline_modules() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/nested_mods.rs", "-s"]);
     assert_eq!(code, 0);
-    assert!(stdout.contains("mod inner"));
-    assert!(stdout.contains("mod tests"));
-    assert!(!stdout.contains("Widget"));
-    assert!(!stdout.contains("test_helper_returns_one"));
+    assert!(stdout.contains("pub mod inner"), "{stdout}");
+    // Members are nested one level under their module, impl members two.
+    assert!(stdout.contains("   pub struct Widget"), "{stdout}");
+    assert!(stdout.contains("impl Widget"), "{stdout}");
+    assert!(stdout.contains("     pub fn spin(&self)"), "{stdout}");
+    // Tests stay hidden by default, including everything inside `mod tests`.
+    assert!(!stdout.contains("mod tests"));
+    assert!(!stdout.contains("shared_setup"));
+
+    let (_, stdout, _) = run_cmd(&["glance", "fixtures/nested_mods.rs", "-t"]);
+    assert!(stdout.contains("test_helper_returns_one"), "{stdout}");
+}
+
+#[test]
+fn test_glance_filter_reaches_inline_module_items() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/nested_mods.rs", "-f", "spin"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("mod inner"), "{stdout}");
+    assert!(stdout.contains("fn spin") || stdout.contains("method spin"), "{stdout}");
+    assert!(!stdout.contains("struct Widget"), "{stdout}");
 }
 
 #[test]
@@ -204,8 +220,9 @@ fn test_block_ambiguity_reports_impl_and_exit_3() {
     let (code, _, stderr) = run_cmd(&["block", "fixtures/impls.rs", "User::dup"]);
     assert_eq!(code, 3);
     assert!(stderr.starts_with("Error: ambiguous target 'User::dup' matched 2 candidates"), "{stderr}");
-    assert!(stderr.contains("[impl Greeter for User]"), "{stderr}");
-    assert!(stderr.contains("Tip: Disambiguate with Type::method"));
+    assert!(stderr.contains("<User>::dup"), "{stderr}");
+    assert!(stderr.contains("<User as Greeter>::dup"), "{stderr}");
+    assert!(stderr.contains("Tip: Quote a Rust qualified path"), "{stderr}");
 }
 
 #[test]
@@ -223,4 +240,42 @@ fn test_block_raw_and_details() {
     assert!(!stdout.contains("==="));
     let (_, stdout, _) = run_cmd(&["glance", "fixtures/impls.rs", "-d"]);
     assert!(stdout.contains("| pub id: u64"), "{stdout}");
+}
+
+#[test]
+fn test_method_vs_associated_fn_labels() {
+    let (code, stdout, _) = run_cmd(&["glance", "fixtures/impls.rs"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("fn new"), "{stdout}"); // no self: associated fn
+    assert!(stdout.contains("method id"), "{stdout}"); // &self
+    assert!(stdout.contains("method greet"), "{stdout}");
+}
+
+#[test]
+fn test_block_rust_qualified_paths() {
+    // Inherent vs trait impl
+    let (code, out, _) = run_cmd(&["block", "fixtures/impls.rs", "<User>::dup", "--raw"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("pub fn dup"), "{out}");
+    let (code, out, _) = run_cmd(&["block", "fixtures/impls.rs", "<User as Greeter>::dup", "--raw"]);
+    assert_eq!(code, 0);
+    assert!(!out.contains("pub fn dup") && out.contains("fn dup"), "{out}");
+
+    // Case-insensitive; trait matched by base name; path-qualified trait text accepted
+    let (code, out, _) = run_cmd(&["block", "fixtures/impls.rs", "<wrapper<T> as Debug>::FMT", "--raw"]);
+    assert_eq!(code, 0, "{out}");
+    let (code, _, _) = run_cmd(&["block", "fixtures/impls.rs", "<Wrapper<T> as std::fmt::Display>::fmt", "--raw"]);
+    assert_eq!(code, 0);
+
+    // Generic traits need their arguments; the error lists the exact forms
+    let (code, _, err) = run_cmd(&["block", "fixtures/impls.rs", "<Wrapper<u8> as From>::from"]);
+    assert_eq!(code, 3);
+    assert!(err.contains("<Wrapper<u8> as From<u8>>::from") && err.contains("<Wrapper<u8> as From<u16>>::from"), "{err}");
+    let (code, out, _) = run_cmd(&["block", "fixtures/impls.rs", "<Wrapper<u8> as From<u16>>::from", "--raw"]);
+    assert_eq!(code, 0);
+    assert!(out.contains("v as u8"), "{out}");
+
+    // Not found
+    let (code, _, _) = run_cmd(&["block", "fixtures/impls.rs", "<User as Debug>::dup"]);
+    assert_eq!(code, 2);
 }

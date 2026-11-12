@@ -32,3 +32,21 @@ impl User {
 impl Greeter for User {
     fn dup(&self) {}
 }
+
+pub struct Wrapper<T>(T);
+
+impl<T> std::fmt::Display for Wrapper<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { Ok(()) }
+}
+
+impl<T> std::fmt::Debug for Wrapper<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result { Ok(()) }
+}
+
+impl From<u8> for Wrapper<u8> {
+    fn from(v: u8) -> Self { Wrapper(v) }
+}
+
+impl From<u16> for Wrapper<u8> {
+    fn from(v: u16) -> Self { Wrapper(v as u8) }
+}

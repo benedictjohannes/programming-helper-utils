@@ -50,23 +50,33 @@ pub fn run_block(opts: BlockOptions) -> i32 {
             opts.file
         );
         for (i, m) in matches.iter().enumerate() {
-            let origin = m
-                .impl_ctx
-                .as_ref()
-                .map(|ic| format!("  [{}]", ic.header))
-                .unwrap_or_default();
+            let shown = impl_path(m).unwrap_or_else(|| m.qualified_name.clone());
+            // Module path = qualified name minus `name` (and `Type` for impl members).
+            let in_mod = if m.depth > 0 {
+                let segs: Vec<&str> = m.qualified_name.split("::").collect();
+                let keep = segs.len().saturating_sub(1 + usize::from(m.impl_ctx.is_some()));
+                format!("  (in mod {})", segs[..keep].join("::"))
+            } else {
+                String::new()
+            };
             eprintln!(
                 "  {}) L{}-L{}   {} {}{}",
                 i + 1,
                 m.start_line,
                 m.end_line,
                 m.kind.as_str(),
-                m.qualified_name,
-                origin
+                shown,
+                in_mod
             );
         }
         eprintln!();
-        eprintln!("Tip: Disambiguate with Type::method (e.g. Router::route) or read line range directly.");
+        if matches.iter().any(|m| m.impl_ctx.is_some()) {
+            eprintln!(
+                "Tip: Quote a Rust qualified path to disambiguate impls (e.g. '<Router as Service>::call', or '<Router>::route' for inherent), or read line range directly."
+            );
+        } else {
+            eprintln!("Tip: Disambiguate with Type::method (e.g. Router::route) or read line range directly.");
+        }
         return 3;
     }
 
@@ -113,7 +123,106 @@ pub fn run_block(opts: BlockOptions) -> i32 {
     0
 }
 
+/// Rust-style qualified path for an impl member: `<Type as Trait>::name`
+/// (trait impl) or `<Type>::name` (inherent impl).
+fn impl_path(item: &Item) -> Option<String> {
+    let ic = item.impl_ctx.as_ref()?;
+    Some(match &ic.trait_ty {
+        Some(t) => format!("<{} as {}>::{}", ic.self_ty, t, item.name),
+        None => format!("<{}>::{}", ic.self_ty, item.name),
+    })
+}
+
+fn norm(s: &str) -> String {
+    s.chars().filter(|c| !c.is_whitespace()).collect::<String>().to_lowercase()
+}
+
+/// `fmt::Display<T>` -> `display`; `&Foo<T>` -> `foo`
+fn base_name(s: &str) -> String {
+    let no_generics = s.split('<').next().unwrap_or(s);
+    let last = no_generics.rsplit("::").next().unwrap_or(no_generics);
+    norm(last.trim_start_matches('&').trim_start_matches("mut "))
+}
+
+/// Parse `<Type as Trait>::method` / `<Type>::method` into (type, trait, method).
+fn parse_qualified_path(target: &str) -> Option<(String, Option<String>, String)> {
+    let rest = target.trim().strip_prefix('<')?;
+    let mut depth = 0usize;
+    let mut close = None;
+    for (i, c) in rest.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' if depth == 0 => {
+                close = Some(i);
+                break;
+            }
+            '>' => depth -= 1,
+            _ => {}
+        }
+    }
+    let close = close?;
+    let inner = &rest[..close];
+    let method = rest[close + 1..].strip_prefix("::")?.trim();
+    if method.is_empty() {
+        return None;
+    }
+
+    // Split at the first top-level ` as `.
+    let mut depth = 0usize;
+    let mut split = None;
+    let bytes = inner.as_bytes();
+    for (i, c) in inner.char_indices() {
+        match c {
+            '<' => depth += 1,
+            '>' => depth = depth.saturating_sub(1),
+            ' ' if depth == 0 && bytes[i..].starts_with(b" as ") => {
+                split = Some(i);
+                break;
+            }
+            _ => {}
+        }
+    }
+    Some(match split {
+        Some(i) => (
+            inner[..i].trim().to_string(),
+            Some(inner[i + 4..].trim().to_string()),
+            method.to_string(),
+        ),
+        None => (inner.trim().to_string(), None, method.to_string()),
+    })
+}
+
+/// Match a `<Type as Trait>::method` target against impl members.
+fn find_qualified_path_matches<'a>(items: &[&'a Item], ty: &str, tr: Option<&str>, method: &str) -> Vec<&'a Item> {
+    let by_impl: Vec<&Item> = items
+        .iter()
+        .copied()
+        .filter(|it| {
+            let Some(ic) = &it.impl_ctx else { return false };
+            let type_ok = norm(ty) == norm(&ic.self_ty)
+                || it.receiver.as_deref().is_some_and(|r| norm(ty) == norm(r) || base_name(ty) == norm(r));
+            let trait_ok = match (tr, &ic.trait_ty) {
+                (None, None) => true,
+                // Full text (with generics) always matches; a generic-free query
+                // like `Display` or `fmt::Display` matches on the trait's base name.
+                (Some(q), Some(t)) => norm(q) == norm(t) || (!q.contains('<') && base_name(q) == base_name(t)),
+                _ => false,
+            };
+            type_ok && trait_ok
+        })
+        .collect();
+    let exact: Vec<&Item> = by_impl.iter().copied().filter(|it| it.name == method).collect();
+    if !exact.is_empty() {
+        return exact;
+    }
+    let m = method.to_lowercase();
+    by_impl.into_iter().filter(|it| it.name.to_lowercase() == m).collect()
+}
+
 fn find_matches<'a>(items: &[&'a Item], target: &str) -> Vec<&'a Item> {
+    if let Some((ty, tr, method)) = parse_qualified_path(target) {
+        return find_qualified_path_matches(items, &ty, tr.as_deref(), &method);
+    }
     let is_qualified = target.contains("::");
 
     if is_qualified {

@@ -44,10 +44,6 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
             .items
             .iter()
             .filter(|item| {
-                // Outline stays top-level; inline module bodies are reachable via `block`.
-                if item.depth > 0 {
-                    return false;
-                }
                 if !opts.include_tests && item.is_test {
                     return false;
                 }
@@ -116,10 +112,11 @@ pub fn run_glance(opts: GlanceOptions) -> i32 {
                 current_impl = item.impl_ctx.as_ref();
                 if let Some(ic) = current_impl {
                     let span = format!("L{}-L{}", ic.start_line, ic.end_line);
-                    println!("  {:<12} {}", span, ic.header);
+                    println!("  {:<12} {}{}", span, "  ".repeat(item.depth), ic.header);
                 }
             }
-            let indent = if item.impl_ctx.is_some() { "  " } else { "" };
+            // Inline-module nesting plus one level for impl members.
+            let indent = "  ".repeat(item.depth + usize::from(item.impl_ctx.is_some()));
 
             let span = format!("L{}-L{}", item.start_line, item.end_line);
             if opts.signatures {

@@ -45,7 +45,8 @@ Each extracted symbol is an `Item { kind, name, qualified_name, signature, start
 | Source construct | `kind` (printed) | Notes |
 |:---|:---|:---|
 | `fn` | `fn` | Free functions |
-| `fn` in `impl` | `fn` | Inherent *and* trait impls; `qualified_name = Type::name` |
+| `fn` in `impl` with a `self` parameter | `method` | Inherent *and* trait impls; `qualified_name = Type::name` |
+| `fn` in `impl` without `self` | `fn` | Associated functions such as `Type::new`; also `qualified_name = Type::name` |
 | `struct` | `struct` | `details`: fields |
 | `enum` | `enum` | `details`: variants |
 | `trait` | `trait` | `details`: associated fns, types, consts, macro calls |
@@ -62,8 +63,11 @@ Not extracted: `use` (reported separately via `-u`), `extern crate`, `extern { }
 
 ### 3.2 Inline Module Handling
 
+Out-of-line modules (`mod foo;`) are listed but deliberately **never followed**: every `skim-*` tool operates on one file at a time (one header, one set of line spans), and following would duplicate output in directory globs and require reimplementing module resolution (`#[path]`, `cfg`). `glance` the directory to see their contents.
+
+
 - Items inside an inline module receive a `mod::` prefix on `qualified_name` (nested: `a::b::Type::method`) and `depth = nesting level`.
-- `glance` outlines **only `depth == 0`** items. The `mod` item itself is listed, but its contents are not; they are reachable through `block`.
+- `glance` outlines inline modules recursively: the `mod` line is followed by its items, indented one level per nesting depth (`impl` members one further level). Test modules remain hidden by default, and so does everything inside them.
 - `block` resolves items at **any depth** (see §4.2).
 - `use` declarations are collected only at file level.
 
@@ -76,7 +80,10 @@ Not extracted: `use` (reported separately via `-u`), `extern crate`, `extern { }
   - Traits: method signatures (no bodies), associated types, consts.
   - Other kinds have no details.
 
-### 3.4 Line Spans
+### 3.4 Filtering (`-f`)
+Consistent with the rest of the family, `-f` matches against the item's name, signature, details **and full source text including its body**, case-insensitively; every `-f` term must match (AND). Because items inside inline modules are outlined, a match inside `mod foo { fn bar() {…} }` is reported as `mod foo` followed by the matching `bar` (a module is kept when its text matches, and its members are filtered individually).
+
+### 3.5 Line Spans
 
 Spans come from the node's text range, so **outer attributes and doc comments are included** in the span (`#[derive(...)]` is line 1 of a struct's block). Lines are 1-indexed and inclusive.
 
@@ -87,6 +94,7 @@ Spans come from the node's text range, so **outer attributes and doc comments ar
 ### 4.1 Target Syntax
 - **Canonical**: `Type::method` (e.g. `Router::route`, `Settings::explain`), also for associated consts and types.
 - **Standalone**: any item name — `Router`, `into_response`, `MAX_RETRIES`, `my_macro`.
+- **Rust qualified path** (impl members): `<Type as Trait>::method` for trait impls, `<Type>::method` for inherent impls. Quote it in the shell (`'<User as Greeter>::dup'`).
 - **Module-qualified**: `inner::Type::method`, or any trailing suffix of that path.
 
 ### 4.2 Resolution Precedence
@@ -106,12 +114,14 @@ Candidates are all non-test items (or all items under `-t`) at **any** nesting d
 
 *Both:* 5. Case-insensitive substring match on `name` or `qualified_name`.
 
-Because trait impls are not distinguished from inherent impls, `Type::method` is ambiguous when both define the same name (e.g. inherent `S::default` and `impl Default for S`). Ambiguity yields exit code `3`; resolve by reading the reported line span.
+*Rust qualified path (`<Type as Trait>::method`, `<Type>::method`):* matched against impl members only. `Type` matches the full self-type text (`Wrapper<u8>`) or its base name (`Wrapper`); `Trait` matches the full trait text (`From<u16>`, `std::fmt::Display`) or, when the query has no generics, the trait's base name (`Display`). Matching is case-insensitive and ignores whitespace, with exact-case method names preferred. `<Type>::method` selects inherent impls only.
+
+`Type::method` stays ambiguous when several impls define the same name (inherent vs trait, `Display` vs `Debug` `fmt`, `From<A>` vs `From<B>`). The ambiguity error (exit `3`) then lists every candidate as its exact qualified path, ready to copy (`<Wrapper<u8> as From<u16>>::from`).
 
 ### 4.3 Output
 - Gutter: `{line:5} | {text}` (5-wide right-aligned); `--raw` prints source lines only.
 - Header includes the syntax-error tag and notices when errors fall within the block's span.
-- Ambiguity error: `Error: ambiguous target '…' matched N candidates in <file>:`, each candidate suffixed with its impl header (`[impl Default for S]`) when applicable; exit `3`. Tip: `Tip: Disambiguate with Type::method (e.g. Router::route) or read line range directly.`
+- Ambiguity error: `Error: ambiguous target '…' matched N candidates in <file>:`, impl members are listed as their qualified path (`<S as Default>::default`), and members of inline modules gain `(in mod a::b)`; exit `3`. The tip for impl candidates reads `Tip: Quote a Rust qualified path to disambiguate impls (e.g. '<Router as Service>::call', or '<Router>::route' for inherent), or read line range directly.`; other ambiguities keep the `Type::method` tip.
 
 ---
 
@@ -155,7 +165,7 @@ skim-rs/
 
 **Distribution**: `cargo install --path skim-rs` (local) or `cargo install skim-rs`. Release profile: `opt-level = 3`, thin LTO, one codegen unit, stripped.
 
-**Automated tests** (`cargo test`) cover: signatures/imports, doc-comment stripping from signatures, exact-case precedence, inherent vs trait impl resolution, test filtering, syntax-error indication in `block`, top-level-only outlines, resolution inside inline and test modules, filter-within-block matching, and missing-path warnings.
+**Automated tests** (`cargo test`) cover: signatures/imports, doc-comment stripping from signatures, exact-case precedence, inherent vs trait impl resolution, Rust qualified-path targets, test filtering, syntax-error indication in `block`, recursive inline-module outlines, resolution inside inline and test modules, filter-within-block matching, and missing-path warnings.
 
 **Smoke testing**: build the release binary and run against a large real repository (e.g. `tokio-rs/axum` cloned under `testingRepositories/rust/`):
 ```bash
@@ -171,9 +181,5 @@ skim-rs glance axum/src/ -s -f test                       # compare with -t
 
 ## 8. Known Issues
 
-- **`-f` matches the whole item body**, not only the declaration (`-f test` matches every item whose code mentions "test"). Useful for locating call sites and documented in `--help`, but broader than the family's "filter items matching text" wording. Matching applies to top-level items only, so matches inside inline modules are not reported (§3.2).
-- **Methods print as `fn`**, whereas the family spec's example labels them `method`. Nesting under the `impl` line already conveys this; `ItemKind::Method` and `ItemKind::Fn` differ only internally.
-- **Trait and inherent impls are not distinguished** by `Type::method`; ambiguity (exit `3`) is reported with impl headers so the agent can pick a line span.
-- **Out-of-line modules (`mod foo;`) are listed but not followed**; run `glance` on the directory.
 - **Edition is hardcoded to 2024**; files in older editions may differ at the margins (e.g. `async`/`gen` keywords).
 - **Test coverage gaps**: `-d` on traits, unions and tuple structs; multi-line `use` trees with `-u`; macro items.
